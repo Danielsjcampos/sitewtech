@@ -8,21 +8,33 @@ import CartDrawer from './CartDrawer';
 import LoginModal from './LoginModal';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const Layout: React.FC = () => {
+interface LayoutProps {
+  children?: React.ReactNode;
+}
+
+import { useSettings } from '../context/SettingsContext';
+
+const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
   const { toggleCart, items } = useCart();
   const { user, setShowLoginModal, logout } = useAuth();
+  const { get } = useSettings();
 
   const navItems = [
     { label: 'Home', path: '/' },
-    { label: 'Cursos', path: '/courses' },
-    { label: 'Mecânicos', path: '/mechanics-map' },
-    // { label: 'Planos', path: '/plans' }, // Removed
+    { label: 'Cursos', path: '/cursos' },
+    { label: 'Mecânicos', path: '/mapa' },
     { label: 'Blog', path: '/blog' },
-    { label: 'Glossário', path: '/glossary' },
-    { label: 'Contato', path: '/contact' },
+    { label: 'Glossário', path: '/glossario' },
+    { label: 'Contato', path: '/contato' },
   ];
+
+  const siteTitle = get('site_title', 'W-TECH');
+  const logoUrl = get('logo_url', ASSETS.LOGO_URL);
+  const contactEmail = get('email_contato', 'comercial@w-techbrasil.com.br');
+  const contactPhone = get('phone_main', '(11) 99999-9999');
+  const contactAddr = get('address', 'São Paulo, SP');
 
   return (
     <div className="min-h-screen flex flex-col font-sans text-slate-800">
@@ -34,6 +46,8 @@ const Layout: React.FC = () => {
         <div className="container mx-auto flex justify-between items-center">
           <span>Especialistas em Suspensão e Performance</span>
           <div className="flex gap-4 items-center">
+             {/* ... User Auth ... */}
+             {/* Preserved existing logic, reusing children for brevity in this replacement block if possible but I need the full return for clarity */}
             {user ? (
                <div className="flex items-center gap-2">
                  <Link to="/admin" className="hover:text-wtech-gold text-wtech-gold font-bold transition-colors">
@@ -50,7 +64,7 @@ const Layout: React.FC = () => {
                     <UserIcon size={12} /> Área do Parceiro
                 </button>
             )}
-            <a href="#" className="hover:text-wtech-gold transition-colors">Suporte</a>
+            <Link to="/suporte" className="hover:text-wtech-gold transition-colors">Suporte</Link>
           </div>
         </div>
       </div>
@@ -60,18 +74,21 @@ const Layout: React.FC = () => {
         <div className="container mx-auto px-6 h-24 flex justify-between items-center">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2 z-50">
-                <div className="w-12 h-12 bg-black text-white flex items-center justify-center font-bold text-2xl rounded-lg">W</div>
-                <span className="font-bold text-2xl tracking-tighter text-wtech-black">W-TECH <span className="text-wtech-gold">BRASIL</span></span>
+                {logoUrl ? (
+                    <img src={logoUrl} alt={siteTitle} className="h-12 w-auto object-contain" />
+                ) : (
+                    <div className="w-12 h-12 bg-black text-white flex items-center justify-center font-bold text-2xl rounded-lg">W</div>
+                )}
             </Link>
             
             {/* Desktop Menu */}
             <div className="hidden lg:flex gap-8 text-sm font-bold text-gray-600 uppercase tracking-wide">
                 <Link to="/" className="hover:text-wtech-gold hover:scale-105 transition-all">Início</Link>
-                <Link to="/courses" className="hover:text-wtech-gold hover:scale-105 transition-all">Cursos</Link>
-                <Link to="/mechanics-map" className="hover:text-wtech-gold hover:scale-105 transition-all">Rede Credenciada</Link>
+                <Link to="/cursos" className="hover:text-wtech-gold hover:scale-105 transition-all">Cursos</Link>
+                <Link to="/mapa" className="hover:text-wtech-gold hover:scale-105 transition-all">Rede Credenciada</Link>
                 <Link to="/blog" className="hover:text-wtech-gold hover:scale-105 transition-all">Blog</Link>
-                <Link to="/courses" className="hover:text-wtech-gold hover:scale-105 transition-all">Agenda</Link>
-                <Link to="/contact" className="hover:text-wtech-gold hover:scale-105 transition-all">Contato</Link>
+                <Link to="/cursos" className="hover:text-wtech-gold hover:scale-105 transition-all">Agenda</Link>
+                <Link to="/contato" className="hover:text-wtech-gold hover:scale-105 transition-all">Contato</Link>
             </div>
 
             <div className="hidden lg:flex gap-4 items-center">
@@ -94,7 +111,7 @@ const Layout: React.FC = () => {
                 >
                     {user ? <Link to="/admin">Painel Admin</Link> : 'Área do Membro'}
                 </button>
-                <Link to="/courses" className="px-6 py-3 rounded-full bg-wtech-black text-white text-sm font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center gap-2 uppercase">
+                <Link to="/cursos" className="px-6 py-3 rounded-full bg-wtech-black text-white text-sm font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center gap-2 uppercase">
                     Ver Agenda
                 </Link>
             </div>
@@ -131,11 +148,11 @@ const Layout: React.FC = () => {
                     className="absolute top-0 left-0 w-full h-screen bg-white/95 backdrop-blur-xl z-40 flex flex-col items-center justify-center gap-8 pt-20"
                 >
                     <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-black uppercase hover:text-wtech-gold">Início</Link>
-                    <Link to="/courses" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-black uppercase hover:text-wtech-gold">Cursos</Link>
-                    <Link to="/mechanics-map" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-black uppercase hover:text-wtech-gold">Rede Credenciada</Link>
+                    <Link to="/cursos" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-black uppercase hover:text-wtech-gold">Cursos</Link>
+                    <Link to="/mapa" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-black uppercase hover:text-wtech-gold">Rede Credenciada</Link>
                     <Link to="/blog" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-black uppercase hover:text-wtech-gold">Blog</Link>
-                    <Link to="/courses" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-black uppercase hover:text-wtech-gold">Agenda</Link>
-                    <Link to="/contact" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-black uppercase hover:text-wtech-gold">Contato</Link>
+                    <Link to="/cursos" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-black uppercase hover:text-wtech-gold">Agenda</Link>
+                    <Link to="/contato" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-black uppercase hover:text-wtech-gold">Contato</Link>
                     <div className="flex flex-col gap-4 mt-8 w-64">
                         <button onClick={() => { setIsMobileMenuOpen(false); if(!user) setShowLoginModal(true); }} className="w-full py-4 rounded-xl border border-gray-200 text-center font-bold uppercase hover:bg-gray-50">
                             {user ? <Link to="/admin">Painel Admin</Link> : 'Área do Membro'}
@@ -146,16 +163,17 @@ const Layout: React.FC = () => {
         </AnimatePresence>
       </nav>
 
+
       {/* Main Content */}
       <main className="flex-grow bg-slate-50">
-        <Outlet />
+        {children || <Outlet />}
       </main>
 
       {/* Footer */}
       <footer className="bg-wtech-black text-gray-400 py-12 border-t-4 border-wtech-gold">
         <div className="container mx-auto px-4 grid md:grid-cols-4 gap-8">
           <div>
-            <img src={ASSETS.LOGO_URL} alt="W-TECH" className="h-10 mb-6 brightness-0 invert opacity-80" />
+            <img src={logoUrl} alt={siteTitle} className="h-10 mb-6 brightness-0 invert opacity-80" />
             <p className="text-sm leading-relaxed">
               Referência nacional em tecnologia de suspensão, oferecendo produtos de alta performance e educação técnica especializada.
             </p>
@@ -163,37 +181,32 @@ const Layout: React.FC = () => {
           <div>
             <h3 className="text-white font-bold uppercase mb-4">Acesso Rápido</h3>
             <ul className="space-y-2 text-sm">
-              <li><Link to="/courses" className="hover:text-wtech-gold">Cursos e Eventos</Link></li>
-              <li><Link to="/mechanics-map" className="hover:text-wtech-gold">Encontrar Mecânico</Link></li>
-              <li><Link to="/glossary" className="hover:text-wtech-gold">Glossário Técnico</Link></li>
+              <li><Link to="/cursos" className="hover:text-wtech-gold">Cursos e Eventos</Link></li>
+              <li><Link to="/mapa" className="hover:text-wtech-gold">Encontrar Mecânico</Link></li>
+              <li><Link to="/glossario" className="hover:text-wtech-gold">Glossário Técnico</Link></li>
               <li><button onClick={() => setShowLoginModal(true)} className="hover:text-wtech-gold text-left">Painel Administrativo</button></li>
+            </ul>
+          </div>
+          <div>
+            <h3 className="text-white font-bold uppercase mb-4">Legal</h3>
+            <ul className="space-y-2 text-sm">
+              <li><Link to="/termos" className="hover:text-wtech-gold">Termos de Uso</Link></li>
+              <li><Link to="/privacidade" className="hover:text-wtech-gold">Privacidade</Link></li>
+              <li><Link to="/cancelamento" className="hover:text-wtech-gold">Política de Cancelamento</Link></li>
+              <li><Link to="/suporte" className="hover:text-wtech-gold">Suporte</Link></li>
             </ul>
           </div>
           <div>
             <h3 className="text-white font-bold uppercase mb-4">Contato</h3>
             <ul className="space-y-2 text-sm">
-              <li>comercial@w-techbrasil.com.br</li>
-              <li>(11) 99999-9999</li>
-              <li>São Paulo, SP</li>
+              <li>{contactEmail}</li>
+              <li>{contactPhone}</li>
+              <li>{contactAddr}</li>
             </ul>
-          </div>
-          <div>
-            <h3 className="text-white font-bold uppercase mb-4">Newsletter</h3>
-            <p className="text-xs mb-4">Receba dicas técnicas e agenda de cursos.</p>
-            <form className="flex flex-col gap-2">
-              <input 
-                type="email" 
-                placeholder="Seu e-mail" 
-                className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-wtech-gold"
-              />
-              <button className="bg-wtech-gold text-wtech-black font-bold py-2 rounded hover:bg-white transition-colors">
-                Inscrever
-              </button>
-            </form>
           </div>
         </div>
         <div className="container mx-auto px-4 mt-12 pt-8 border-t border-gray-800 text-center text-xs">
-          <p>&copy; {new Date().getFullYear()} W-TECH Brasil. Todos os direitos reservados.</p>
+          <p>&copy; {new Date().getFullYear()} {siteTitle}. Todos os direitos reservados.</p>
         </div>
       </footer>
     </div>

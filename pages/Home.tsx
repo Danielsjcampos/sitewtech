@@ -45,15 +45,19 @@ const Home = () => {
                     })));
                 }
 
-                // Fetch Blog Posts (Latest 2)
-                const { data: blogData } = await supabase
+                // Fetch Blog Posts (Latest 3)
+                const { data: blogData, error: blogError } = await supabase
                     .from('SITE_BlogPosts')
                     .select('*')
                     .eq('status', 'Published')
-                    .order('created_at', { ascending: false })
+                    .order('date', { ascending: false }) // Sort by Schedule Date
                     .limit(3);
 
-                if (blogData) setPosts(blogData);
+                if (blogError) console.error("Blog fetch error:", blogError);
+                if (blogData) {
+                    console.log("Blogs fetched:", blogData);
+                    setPosts(blogData);
+                }
 
             } catch (e) {
                 console.error("Error fetching content", e);
@@ -123,9 +127,9 @@ const Home = () => {
                 locations.forEach(loc => {
                     const icon = L.divIcon({
                         className: 'custom-div-icon',
-                        html: `<div style="background-color: #D4AF37; width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.3);"></div>`,
-                        iconSize: [12, 12],
-                        iconAnchor: [6, 6]
+                        html: `<div style="background-color: #EF4444; width: 10px; height: 10px; border-radius: 50%; border: 1px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+                        iconSize: [10, 10],
+                        iconAnchor: [5, 5]
                     });
                     L.marker([loc.lat, loc.lng], { icon: icon }).addTo(map).bindPopup(`<b>${loc.name}</b>`);
                 });
@@ -214,7 +218,7 @@ const Home = () => {
                                          <Award size={24} />
                                      </div>
                                      <div>
-                                         <p className="font-bold text-white text-lg">Alexandre Generoso</p>
+                                         <p className="font-bold text-white text-lg">Alex Crepaldi</p>
                                          <p className="text-xs text-wtech-gold font-bold uppercase tracking-wide">Diretor Técnico & Instrutor</p>
                                      </div>
                                  </div>
@@ -483,25 +487,27 @@ const Home = () => {
                         <p className="text-gray-500 mt-2">Artigos técnicos e notícias do setor.</p>
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-12">
+                    <div className="flex overflow-x-auto pb-8 gap-8 snap-x snap-mandatory">
                          {posts.length > 0 ? (
                             posts.map(post => (
-                             <div key={post.id} className="group cursor-pointer">
-                                 <div className="overflow-hidden rounded-2xl mb-6">
-                                     <img src={post.image} className="w-full h-80 object-cover transition-transform duration-700 group-hover:scale-105" />
+                             <div key={post.id} className="min-w-[350px] md:min-w-[400px] snap-center group cursor-pointer bg-white rounded-2xl shadow-sm hover:shadow-md transition-all border border-gray-100">
+                                 <div className="overflow-hidden rounded-t-2xl h-60">
+                                     <img src={post.image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                                  </div>
-                                 <div className="flex gap-4 items-center mb-3">
-                                     <span className="text-xs font-bold text-wtech-gold uppercase tracking-wider">{post.category}</span>
-                                     <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                                     <span className="text-xs text-gray-400">5 min de leitura</span>
+                                 <div className="p-6">
+                                     <div className="flex gap-4 items-center mb-3">
+                                         <span className="text-xs font-bold text-wtech-gold uppercase tracking-wider">{post.category}</span>
+                                         <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                                         <span className="text-xs text-gray-400">5 min</span>
+                                     </div>
+                                     <h3 className="text-xl font-bold mb-3 group-hover:text-wtech-gold transition-colors line-clamp-2">{post.title}</h3>
+                                     <div className="text-gray-500 text-sm mb-4 line-clamp-2" dangerouslySetInnerHTML={{ __html: post.excerpt || post.content.substring(0, 50) + '...' }} />
+                                     <Link to={`/blog/${post.slug || post.id}`} className="text-sm font-bold border-b-2 border-transparent group-hover:border-wtech-gold inline-block pb-1 transition-all">Ler Artigo</Link>
                                  </div>
-                                 <h3 className="text-2xl font-bold mb-3 group-hover:text-wtech-gold transition-colors">{post.title}</h3>
-                                 <div className="text-gray-500 mb-4 line-clamp-2" dangerouslySetInnerHTML={{ __html: post.excerpt || post.content.substring(0, 100) + '...' }} />
-                                 <span className="text-sm font-bold border-b-2 border-transparent group-hover:border-wtech-gold inline-block pb-1 transition-all">Ler Artigo Completo</span>
                              </div>
                             ))
                          ) : (
-                             <p className="text-gray-500 col-span-2 text-center">Nenhum artigo publicado ainda.</p>
+                             <p className="text-gray-500 w-full text-center">Nenhum artigo publicado ainda.</p>
                          )}
                     </div>
                 </div>
@@ -607,51 +613,7 @@ const Home = () => {
 
             </section>
 
-            {/* FOOTER - Minimalist Black/Gold */}
-            <footer className="bg-wtech-black text-white pt-20 pb-10">
-                <div className="container mx-auto px-6">
-                    <div className="grid md:grid-cols-4 gap-12 mb-16">
-                        <div className="md:col-span-2">
-                             <div className="flex items-center gap-2 mb-6">
-                                <div className="w-8 h-8 bg-white text-black flex items-center justify-center font-bold rounded">W</div>
-                                <span className="font-bold text-lg tracking-tighter">W-TECH <span className="text-wtech-gold">BRASIL</span></span>
-                            </div>
-                            <p className="text-gray-400 max-w-sm mb-6">
-                                Elevando o padrão da reparação automotiva no Brasil através de tecnologia, capacitação e inovação.
-                            </p>
-                            <div className="flex gap-4">
-                                <a href="#" className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-wtech-gold hover:text-black transition-colors"><Instagram size={18}/></a>
-                                <a href="#" className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-wtech-gold hover:text-black transition-colors"><Play size={18}/></a>
-                            </div>
-                        </div>
-                        
-                        <div>
-                            <h4 className="font-bold text-lg mb-6 text-wtech-gold">Navegação</h4>
-                            <ul className="space-y-4 text-gray-400 text-sm">
-                                <li><a href="#" className="hover:text-white transition-colors">Quem Somos</a></li>
-                                <li><a href="#" className="hover:text-white transition-colors">Cursos Presenciais</a></li>
-                                <li><a href="#" className="hover:text-white transition-colors">Cursos Online</a></li>
-                                <li><a href="#" className="hover:text-white transition-colors">Rede Credenciada</a></li>
-                            </ul>
-                        </div>
 
-                         <div>
-                            <h4 className="font-bold text-lg mb-6 text-wtech-gold">Legal</h4>
-                            <ul className="space-y-4 text-gray-400 text-sm">
-                                <li><a href="#" className="hover:text-white transition-colors">Termos de Uso</a></li>
-                                <li><a href="#" className="hover:text-white transition-colors">Privacidade</a></li>
-                                <li><a href="#" className="hover:text-white transition-colors">Política de Cancelamento</a></li>
-                                <li><a href="#" className="hover:text-white transition-colors">Suporte</a></li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    <div className="border-t border-white/10 pt-10 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500">
-                        <p>&copy; 2024 W-Tech Brasil. Todos os direitos reservados.</p>
-                        <p className="mt-4 md:mt-0 flex items-center gap-1">Desenvolvido com <Star size={10} className="fill-wtech-gold text-wtech-gold"/> pela Equipe W-Tech</p>
-                    </div>
-                </div>
-            </footer>
         </div>
     );
 };

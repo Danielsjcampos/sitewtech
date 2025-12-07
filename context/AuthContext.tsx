@@ -29,32 +29,45 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
-      // Use limit(1).maybeSingle() to avoid error PGRST116 if duplicates exist
-      const { data, error } = await supabase
+      // 1. Fetch User First (Without Join) to check credentials
+      const { data: userData, error: userError } = await supabase
         .from('SITE_Users')
         .select('*')
         .eq('email', email)
-        .eq('password', password) // Note: Plain text for demo.
+        .eq('password', password)
         .limit(1)
         .maybeSingle();
 
-      if (error) {
-          console.error("Login Error:", error);
-          return { success: false, error: 'Erro de conexão.' };
+      if (userError) {
+          console.error("Login User Error:", userError);
+          setLoading(false);
+          return { success: false, error: 'Erro de conexão: ' + userError.message };
       }
 
-      if (!data) {
+      if (!userData) {
+        setLoading(false);
         return { success: false, error: 'Credenciais inválidas.' };
       }
 
+      // 2. Fetch Role Separately (Manual Join)
+      let roleData = null;
+      if (userData.role_id) {
+          const { data: rData } = await supabase
+              .from('SITE_Roles')
+              .select('*')
+              .eq('id', userData.role_id)
+              .single();
+          roleData = rData;
+      }
+
       const loggedUser: User = {
-        id: data.id,
-        name: data.name,
-        email: data.email,
-        role: data.role as UserRole,
-        avatar: data.avatar,
-        permissions: data.permissions,
-        status: data.status,
+        id: userData.id,
+        name: userData.name,
+        email: userData.email,
+        role: roleData || 'User', // Fallback
+        avatar: userData.avatar,
+        permissions: userData.permissions || (roleData?.permissions) || {},
+        status: userData.status,
       };
 
       setUser(loggedUser);

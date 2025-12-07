@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { Mail, Phone, MapPin, Clock, Send, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { triggerWebhook } from '../lib/webhooks';
+import { useSettings } from '../context/SettingsContext';
 
 const Contact: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' });
+  const { get } = useSettings();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,6 +40,11 @@ const Contact: React.FC = () => {
     }
   };
 
+  const address = get('address', 'Rua da Performance, 1234<br/>São Paulo, SP - Brasil');
+  const phone = get('phone_main', '(11) 99999-9999');
+  const email = get('email_contato', 'contato@w-techbrasil.com.br');
+  const hours = get('working_hours', 'Seg a Sex: 08h às 18h');
+
   return (
     <div className="bg-white">
       {/* Header */}
@@ -56,28 +63,28 @@ const Contact: React.FC = () => {
                         <div className="bg-gray-100 p-3 rounded text-wtech-gold"><MapPin /></div>
                         <div>
                             <p className="font-bold">Endereço</p>
-                            <p className="text-gray-600">Rua da Performance, 1234<br/>São Paulo, SP - Brasil</p>
+                            <p className="text-gray-600" dangerouslySetInnerHTML={{ __html: address.replace(/\n/g, '<br/>') }}></p>
                         </div>
                     </div>
                     <div className="flex items-start gap-4">
                         <div className="bg-gray-100 p-3 rounded text-wtech-gold"><Phone /></div>
                         <div>
                             <p className="font-bold">Telefone</p>
-                            <p className="text-gray-600">(11) 99999-9999</p>
+                            <p className="text-gray-600">{phone}</p>
                         </div>
                     </div>
                     <div className="flex items-start gap-4">
                         <div className="bg-gray-100 p-3 rounded text-wtech-gold"><Mail /></div>
                         <div>
                             <p className="font-bold">E-mail</p>
-                            <p className="text-gray-600">contato@w-techbrasil.com.br</p>
+                            <p className="text-gray-600">{email}</p>
                         </div>
                     </div>
                     <div className="flex items-start gap-4">
                         <div className="bg-gray-100 p-3 rounded text-wtech-gold"><Clock /></div>
                         <div>
                             <p className="font-bold">Horário de Atendimento</p>
-                            <p className="text-gray-600">Seg a Sex: 08h às 18h</p>
+                            <p className="text-gray-600">{hours}</p>
                         </div>
                     </div>
                 </div>

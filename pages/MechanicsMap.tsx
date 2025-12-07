@@ -53,7 +53,14 @@ const MechanicsMap: React.FC = () => {
     // Add Markers
     mechanics.forEach(mech => {
       if (mech.latitude && mech.longitude) {
-        const marker = L.marker([mech.latitude, mech.longitude]).addTo(mapRef.current);
+        const icon = L.divIcon({
+            className: 'custom-div-icon',
+            html: `<div style="background-color: #EF4444; width: 10px; height: 10px; border-radius: 50%; border: 1px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+            iconSize: [10, 10],
+            iconAnchor: [5, 5]
+        });
+
+        const marker = L.marker([mech.latitude, mech.longitude], { icon }).addTo(mapRef.current);
         
         // Custom Popup Content
         const popupContent = `

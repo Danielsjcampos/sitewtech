@@ -34,35 +34,52 @@ const BlogPostReader: React.FC = () => {
   }, [slug]);
 
   const fetchPost = async () => {
+    if (!slug) return;
     setLoading(true);
-    // Try finding by slug first, then by ID as fallback
-    let { data, error } = await supabase
-      .from('SITE_BlogPosts')
-      .select('*')
-      .eq('slug', slug)
-      .maybeSingle();
+    try {
+        // Try finding by slug first, then by ID as fallback
+        let { data, error } = await supabase
+          .from('SITE_BlogPosts')
+          .select('*')
+          .eq('slug', slug)
+          .maybeSingle();
 
-    if (!data) {
-        // Fallback to ID
-         const { data: dataId } = await supabase
-            .from('SITE_BlogPosts')
-            .select('*')
-            .eq('id', slug)
-            .maybeSingle();
-         data = dataId;
-    }
+        if (error) console.error("Error fetching by slug:", error);
 
-    if (data) {
-       setPost(data);
-       // Increment View Count
-       await supabase.rpc('increment_post_view', { post_id: data.id }).catch(() => {
-          // Fallback if RPC doesn't exist yet
-          supabase.from('SITE_BlogPosts').update({ views: (data.views || 0) + 1 }).eq('id', data.id);
-       });
-       
-       prepareTTS(data.content);
+        if (!data) {
+             // Fallback to ID only if slug is a valid UUID to avoid PG errors
+             const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+             if (isUUID) {
+                 const { data: dataId, error: errorId } = await supabase
+                    .from('SITE_BlogPosts')
+                    .select('*')
+                    .eq('id', slug)
+                    .maybeSingle();
+                 if (dataId) data = dataId;
+                 if (errorId) console.error("Error fetching by ID:", errorId);
+             }
+        }
+
+        if (data) {
+           setPost(data);
+           // Increment View Count (Non-blocking)
+           // Increment View Count (Non-blocking)
+           supabase.rpc('increment_post_view', { post_id: data.id }).then(({ error }) => {
+               if (error) {
+                   // Fallback if RPC fails or doesn't exist
+                   supabase.from('SITE_BlogPosts').update({ views: (data.views || 0) + 1 }).eq('id', data.id);
+               }
+           });
+           
+           if (data.content) prepareTTS(data.content);
+        } else {
+            console.warn("Post not found for slug:", slug);
+        }
+    } catch (err) {
+        console.error("Unexpected error in fetchPost:", err);
+    } finally {
+        setLoading(false);
     }
-    setLoading(false);
   };
 
   const calculateReadTime = (content: string) => {
@@ -72,30 +89,49 @@ const BlogPostReader: React.FC = () => {
   };
 
   // Prepare Text-to-Speech
+  // Prepare Text-to-Speech
   const prepareTTS = (htmlContent: string) => {
-    const text = htmlContent.replace(/<[^>]*>/g, ' '); // Strip HTML
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'pt-BR';
-    u.rate = 1.1; // Slightly faster natural reading
-    u.pitch = 1;
+    // Simply clear previous to avoid conflicts
+    window.speechSynthesis.cancel();
+  };
+
+  const speakText = (text: string) => {
+    // Split by sentence to avoid browser limits (Chrome stops at ~200-300 chars often)
+    // This is a naive implementation but works better than full text
+    const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
     
-    u.onend = () => setIsPlaying(false);
-    setUtterance(u);
+    let index = 0;
+    const speakNext = () => {
+        if (index < sentences.length && isPlaying) {
+             const u = new SpeechSynthesisUtterance(sentences[index]);
+             u.lang = 'pt-BR';
+             u.rate = 1.1;
+             u.onend = () => {
+                 index++;
+                 speakNext();
+             };
+             u.onerror = (e) => {
+                 console.error("TTS Error", e);
+                 setIsPlaying(false);
+             };
+             setUtterance(u); // Keep ref to current
+             window.speechSynthesis.speak(u);
+        } else {
+            setIsPlaying(false);
+        }
+    };
+    speakNext();
   };
 
   const toggleSpeech = () => {
-    if (!utterance) return;
-    
     if (isPlaying) {
-      window.speechSynthesis.pause();
+      window.speechSynthesis.cancel();
       setIsPlaying(false);
     } else {
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      } else {
-        window.speechSynthesis.speak(utterance);
-      }
+      if (!post?.content) return;
       setIsPlaying(true);
+      const text = post.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      speakText(text);
     }
   };
 

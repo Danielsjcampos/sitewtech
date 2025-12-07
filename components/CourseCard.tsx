@@ -61,7 +61,7 @@ const CourseCard: React.FC<CourseCardProps> = ({ course }) => {
                         : course.price}
                 </span>
                 <Link 
-                    to={`/courses/${course.id}`}
+                    to={`/cursos/${course.id}`}
                     className="flex items-center text-sm font-bold text-wtech-black hover:text-wtech-gold transition-colors"
                 >
                     DETALHES <ArrowRight size={16} className="ml-1" />

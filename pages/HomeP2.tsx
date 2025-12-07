@@ -206,7 +206,7 @@ const HomeP2: React.FC = () => {
             transition={{ duration: 0.8, delay: 0.6 }}
             className="flex flex-col sm:flex-row gap-4 justify-center"
           >
-            <Link to="/courses">
+            <Link to="/cursos">
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 className="bg-blue-600 text-white px-8 py-4 rounded-xl text-lg font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30"

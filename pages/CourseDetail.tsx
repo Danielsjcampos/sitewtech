@@ -55,7 +55,7 @@ const CourseDetail: React.FC = () => {
   }
 
   if (!course) {
-    return <div className="p-12 text-center">Curso não encontrado. <Link to="/courses" className="text-wtech-gold">Voltar</Link></div>;
+    return <div className="p-12 text-center">Curso não encontrado. <Link to="/cursos" className="text-wtech-gold">Voltar</Link></div>;
   }
 
   return (

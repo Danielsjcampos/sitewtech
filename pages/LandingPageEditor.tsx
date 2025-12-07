@@ -20,6 +20,7 @@ export const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ course, on
         subtitle: 'Domine a arte da suspensão de motos com a metodologia W-Tech.',
         slug: course.title.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, ''),
         heroImage: course.image || '',
+        heroSecondaryImage: 'https://lp.w-techbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/09/boas-vindas-2.png.webp',
         benefits: [
             { title: 'Fundamentos Teóricos', description: 'Hidráulica, Mola, SAG, Atrito e Qualidade de Trabalho.' },
             { title: 'Técnica de Revalvulação', description: 'Aprenda a personalizar e preparar suspensões para alta performance.' },
@@ -28,9 +29,17 @@ export const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ course, on
             { title: 'Peças e Ferramentas', description: 'Acesso a projetos e desenvolvimentos próprios da W-Tech.' },
             { title: 'Seja um Credenciado', description: 'Tabela de preços exclusiva e suporte técnico contínuo para parceiros.' }
         ],
+        modules: [
+            { image: 'https://lp.w-techbrasil.com.br/wp-content/uploads/2025/09/SUSPENSOES-E-SEUS-MODELOS-VARIADOS.jpg.webp', title: 'SUSPENSÕES E SEUS MODELOS VARIADOS', description: 'Neste módulo introdutório, você aprenderá sobre os diferentes tipos de suspensão aplicados a motos off-road e de alta velocidade. Entenda como cada sistema funciona e qual é o mais adequado para cada terreno ou estilo de pilotagem' },
+            { image: 'https://lp.w-techbrasil.com.br/wp-content/uploads/2025/09/MOLAS-E-SUAS-PARTICULARIDAS-768x512.jpg.webp', title: 'MOLAS E SUAS PROPRIEDADES', description: 'As molas são componentes fundamentais na suspensão. Neste módulo, você vai se aprofundar nas propriedades das molas e como elas impactam o desempenho e a estabilidade da moto em diferentes situações' },
+            { image: 'https://lp.w-techbrasil.com.br/wp-content/uploads/2025/09/MECANICA-DOS-FLUIDOS-PARA-SUSPENSAO-768x512.jpg.webp', title: 'MECÂNICA DOS FLUIDOS PARA SUSPENSÃO', description: 'A suspensão hidráulica utiliza fluido para amortecer impactos. Neste módulo, você vai entender os princípios da mecânica dos fluidos e como eles influenciam o desempenho do sistema de suspensão' },
+            { image: 'https://lp.w-techbrasil.com.br/wp-content/uploads/2025/09/SUSPENSOES-E-SEUS-MODELOS-VARIADOS.jpg.webp', title: 'PARAMETRIZAÇÃO DA SUSPENSÃO', description: 'Neste módulo, você aprenderá a parametrizar a suspensão de forma precisa, ajustando configurações para obter o melhor desempenho em diferentes condições e terrenos' },
+            { image: 'https://lp.w-techbrasil.com.br/wp-content/uploads/2025/09/MOLAS-E-SUAS-PARTICULARIDAS-768x512.jpg.webp', title: 'ÓLEO E SUAS VISCOSIDADES', description: 'A escolha do óleo correto é fundamental para o bom funcionamento do sistema hidráulico. Neste módulo, você aprenderá sobre as diferentes viscosidades e como elas afetam o desempenho da suspensão' },
+            { image: 'https://lp.w-techbrasil.com.br/wp-content/uploads/2025/09/MECANICA-DOS-FLUIDOS-PARA-SUSPENSAO-768x512.jpg.webp', title: 'FLUXOGRAMA DA VÁLVULA', description: 'Entender o funcionamento das válvulas no sistema de suspensão é crucial para ajustar corretamente o fluxo hidráulico. Neste módulo, você aprenderá sobre o fluxo de óleo e como ele é controlado pelas válvulas' }
+        ],
         instructorName: 'Alex Crepaldi',
         instructorBio: 'Referência nacional em suspensões, Alex Crepaldi ensina as técnicas de acerto e ajuste em todos os modelos. Torne-se um profissional diferenciado ao associar-se à empresa líder no mercado nacional e desfrute de todas as vantagens de ser um credenciado W-Tech!',
-        instructorImage: 'https://w-techbrasil.com.br/wp-content/uploads/2021/05/alex-crepaldi.jpg', // Placeholder valid URL if available, or keep empty
+        instructorImage: 'https://w-techbrasil.com.br/wp-content/uploads/2021/05/alex-crepaldi.jpg',
         whatsappNumber: '5511999999999'
     });
 
@@ -49,14 +58,15 @@ export const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ course, on
         if (data) {
             setLp({
                 ...data,
-                // Explicit mapping because DB is snake_case and interface is camelCase
                 courseId: data.course_id,
                 heroImage: data.hero_image,
+                heroSecondaryImage: data.hero_secondary_image,
                 videoUrl: data.video_url,
                 instructorName: data.instructor_name,
                 instructorBio: data.instructor_bio,
                 instructorImage: data.instructor_image,
-                whatsappNumber: data.whatsapp_number
+                whatsappNumber: data.whatsapp_number,
+                modules: data.modules || [] // Ensure array
             });
         }
         setLoading(false);
@@ -64,7 +74,6 @@ export const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ course, on
 
     const handleSave = async () => {
         setSaving(true);
-        console.log("Saving Landing Page...", lp);
         try {
             const { data, error } = await supabase
                 .from('SITE_LandingPages')
@@ -74,8 +83,10 @@ export const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ course, on
                     title: lp.title,
                     subtitle: lp.subtitle,
                     hero_image: lp.heroImage,
+                    hero_secondary_image: lp.heroSecondaryImage,
                     video_url: lp.videoUrl,
                     benefits: lp.benefits,
+                    modules: lp.modules,
                     instructor_name: lp.instructorName,
                     instructor_bio: lp.instructorBio,
                     instructor_image: lp.instructorImage,
@@ -84,34 +95,23 @@ export const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ course, on
                 .select()
                 .single();
 
-            if (error) {
-                console.error("Save Error:", error);
-                throw error;
-            }
+            if (error) throw error;
 
-            console.log("Save Success, returned:", data);
-            
-            // Update local state with the confirmed data from DB
             if (data) {
                 setLp(prev => ({
                     ...prev,
                     ...data,
-                    // Map back snake_case to camelCase where necessary if data returns raw keys
-                    // Note: Supabase JS client usually returns keys matching the query or table columns (snake_case)
-                    // We need to ensure we map them back to our internal camelCase state if we use it for rendering.
-                    
-                    // Actually, the 'lp' state uses camelCase (heroImage), but DB returns snake_case (hero_image).
-                    // We must map it back manually to avoid breaking the UI.
                     heroImage: data.hero_image,
+                    heroSecondaryImage: data.hero_secondary_image,
                     videoUrl: data.video_url,
                     instructorName: data.instructor_name,
                     instructorBio: data.instructor_bio,
                     instructorImage: data.instructor_image,
-                    whatsappNumber: data.whatsapp_number
+                    whatsappNumber: data.whatsapp_number,
+                    modules: data.modules
                 }));
             }
-
-            alert('Página salva com sucesso! (Dados confirmados)');
+            alert('Página salva com sucesso!');
         } catch (err: any) {
             console.error("Catch Error:", err);
             alert('Erro ao salvar: ' + (err.message || JSON.stringify(err)));
@@ -135,6 +135,27 @@ export const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ course, on
         newBenefits.splice(index, 1);
         setLp({ ...lp, benefits: newBenefits });
     };
+    
+    // Modules Handlers
+    const updateModule = (index: number, field: string, value: string) => {
+        const newModules = [...(lp.modules || [])];
+        newModules[index] = { ...newModules[index], [field]: value };
+        setLp({ ...lp, modules: newModules });
+    };
+
+    const addModule = () => {
+        setLp({ ...lp, modules: [...(lp.modules || []), { 
+            title: 'Novo Módulo', 
+            description: 'Descrição do módulo...',
+            image: 'https://lp.w-techbrasil.com.br/wp-content/uploads/2025/09/SUSPENSOES-E-SEUS-MODELOS-VARIADOS.jpg.webp'
+        }] });
+    };
+
+    const removeModule = (index: number) => {
+        const newModules = [...(lp.modules || [])];
+        newModules.splice(index, 1);
+        setLp({ ...lp, modules: newModules });
+    };
 
     if (loading) return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm">
@@ -146,7 +167,7 @@ export const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ course, on
 
     return (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm p-4">
-            <div className="bg-white text-gray-900 w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="bg-white text-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
                 
                 {/* Header */}
                 <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50">
@@ -170,12 +191,15 @@ export const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ course, on
                 <div className="flex flex-1 overflow-hidden">
                     
                     {/* Sidebar Tabs */}
-                    <div className="w-64 bg-gray-50 border-r border-gray-100 p-4 space-y-2">
+                    <div className="w-64 bg-gray-50 border-r border-gray-100 p-4 space-y-2 shrink-0 overflow-y-auto">
                         <button onClick={() => setActiveTab('hero')} className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-colors ${activeTab === 'hero' ? 'bg-black text-white shadow-lg' : 'text-gray-600 hover:bg-gray-200'}`}>
                             <Layout size={18} /> Hero & Capa
                         </button>
                         <button onClick={() => setActiveTab('content')} className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-colors ${activeTab === 'content' ? 'bg-black text-white shadow-lg' : 'text-gray-600 hover:bg-gray-200'}`}>
                             <CheckSquare size={18} /> Conteúdo & Vídeo
+                        </button>
+                        <button onClick={() => setActiveTab('modules')} className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-colors ${activeTab === 'modules' ? 'bg-black text-white shadow-lg' : 'text-gray-600 hover:bg-gray-200'}`}>
+                            <Layout size={18} /> Módulos
                         </button>
                         <button onClick={() => setActiveTab('instructor')} className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-colors ${activeTab === 'instructor' ? 'bg-black text-white shadow-lg' : 'text-gray-600 hover:bg-gray-200'}`}>
                             <User size={18} /> Instrutor
@@ -188,6 +212,7 @@ export const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ course, on
                         {activeTab === 'hero' && (
                             <div className="space-y-6 animate-fade-in">
                                 <h3 className="text-xl font-bold border-b pb-2 mb-4">Informações Principais</h3>
+                                {/* Existing fields */}
                                 <div>
                                     <label className="block text-sm font-bold text-gray-500 mb-1">Título da Página (H1)</label>
                                     <input className="w-full bg-gray-50 border border-gray-200 p-3 rounded-lg focus:ring-2 focus:ring-black outline-none transition-all" value={lp.title || ''} onChange={e => setLp({ ...lp, title: e.target.value })} />
@@ -204,18 +229,64 @@ export const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ course, on
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-500 mb-1">Imagem de Capa (URL)</label>
+                                    <label className="block text-sm font-bold text-gray-500 mb-1">Imagem de Capa (Background Hero)</label>
                                     <div className="flex gap-2">
                                         <input className="flex-1 bg-gray-50 border border-gray-200 p-3 rounded-lg focus:ring-2 focus:ring-black outline-none transition-all" value={lp.heroImage || ''} onChange={e => setLp({ ...lp, heroImage: e.target.value })} placeholder="https://..." />
                                         {lp.heroImage && <img src={lp.heroImage} className="w-12 h-12 object-cover rounded shadow" alt="Preview" />}
                                     </div>
+                                </div>
+                                
+                                {/* New Secondary Image Field */}
+                                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Imagem de Boas Vindas (Substitui o Form no topo)</label>
+                                    <p className="text-xs text-gray-500 mb-2">Esta imagem aparecerá à direita no topo da página. O formulário será movido para o final.</p>
+                                    <div className="flex gap-2">
+                                        <input className="flex-1 bg-white border border-gray-200 p-3 rounded-lg focus:ring-2 focus:ring-black outline-none transition-all" value={lp.heroSecondaryImage || ''} onChange={e => setLp({ ...lp, heroSecondaryImage: e.target.value })} placeholder="https://..." />
+                                        {lp.heroSecondaryImage && <img src={lp.heroSecondaryImage} className="w-12 h-12 object-cover rounded shadow" alt="Preview" />}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'modules' && (
+                             <div className="space-y-6 animate-fade-in">
+                                <div className="flex items-center justify-between border-b pb-2 mb-4">
+                                    <h3 className="text-xl font-bold">Módulos do Curso (Grid)</h3>
+                                    <button onClick={addModule} className="text-sm bg-black text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-800"><Plus size={16} /> Adicionar Módulo</button>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 gap-6">
+                                    {lp.modules?.map((mod, idx) => (
+                                        <div key={idx} className="flex gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 items-start">
+                                            <div className="w-24 h-24 bg-gray-200 rounded-lg shrink-0 overflow-hidden border border-gray-300">
+                                                 {mod.image ? <img src={mod.image} className="w-full h-full object-cover" /> : <ImageIcon className="w-full h-full p-6 text-gray-400" />}
+                                            </div>
+                                            <div className="flex-1 space-y-3">
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-gray-400 uppercase">Título</label>
+                                                    <input className="w-full bg-white border border-gray-200 p-2 rounded font-bold" value={mod.title} onChange={e => updateModule(idx, 'title', e.target.value)} />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-gray-400 uppercase">Descrição</label>
+                                                    <textarea rows={2} className="w-full bg-white border border-gray-200 p-2 rounded text-sm text-gray-600" value={mod.description} onChange={e => updateModule(idx, 'description', e.target.value)} />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-gray-400 uppercase">Imagem URL</label>
+                                                    <input className="w-full bg-white border border-gray-200 p-2 rounded text-xs text-gray-500" value={mod.image} onChange={e => updateModule(idx, 'image', e.target.value)} />
+                                                </div>
+                                            </div>
+                                            <button onClick={() => removeModule(idx)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                                <Trash2 size={20} />
+                                            </button>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         )}
 
                         {activeTab === 'content' && (
                             <div className="space-y-6 animate-fade-in">
-                                <h3 className="text-xl font-bold border-b pb-2 mb-4">Conteúdo e Benefícios</h3>
+                                <h3 className="text-xl font-bold border-b pb-2 mb-4">Conteúdo e Benefícios (Checklist)</h3>
                                 
                                 <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
                                     <label className="block text-sm font-bold text-gray-500 mb-1 flex items-center gap-2"><Video size={16} /> Vídeo de Vendas (Youtube URL)</label>
@@ -224,7 +295,7 @@ export const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ course, on
 
                                 <div>
                                     <div className="flex items-center justify-between mb-4">
-                                        <label className="block text-sm font-bold text-gray-500">Módulos / Benefícios</label>
+                                        <label className="block text-sm font-bold text-gray-500">Lista de Benefícios</label>
                                         <button onClick={addBenefit} className="text-xs bg-black text-white px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-gray-800"><Plus size={12} /> Adicionar Item</button>
                                     </div>
                                     <div className="space-y-4">

@@ -13,15 +13,24 @@ export interface Permission {
   manageOrders: boolean;
 }
 
+export interface Role {
+    id: string;
+    name: string;
+    description: string;
+    permissions: any;
+    level: number;
+}
+
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: UserRole;
+  role: Role | string; // Supporting both object (after fetch) and string (legacy/simple)
   avatar: string;
-  permissions: Permission;
+  permissions: Permission; // Legacy
   status: 'Active' | 'Inactive';
-  password?: string; // Optional for local auth handling
+  password?: string;
+  role_id?: string;
 }
 
 export interface Course {
@@ -113,6 +122,8 @@ export interface LandingPage {
   testimonials?: { name: string; text: string; image?: string }[];
   whatsappNumber?: string; // For CTA
   pixelId?: string; // Facebook Pixel
+  modules?: { title: string; description: string; image: string }[];
+  heroSecondaryImage?: string;
 }
 
 
@@ -125,6 +136,8 @@ export interface Lead {
   status: 'New' | 'Contacted' | 'Negotiating' | 'Converted';
   contextId?: string; // Mapped from context_id
   createdAt: string; // Mapped from created_at
+  assignedTo?: string; // Mapped from assigned_to
+  internalNotes?: string; // Mapped from internal_notes
 }
 
 export interface Mechanic {

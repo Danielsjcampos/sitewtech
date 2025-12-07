@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import { LandingPage, Course } from '../types';
 import { CheckCircle, ShieldCheck, ArrowRight, Star, Play, MapPin, Calendar, Clock, Check, User, Users, AlertTriangle, Navigation } from 'lucide-react';
 import { triggerWebhook } from '../lib/webhooks';
+import { distributeLead } from '../lib/leadDistribution';
 
 const LandingPageViewer: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -62,6 +63,8 @@ const LandingPageViewer: React.FC = () => {
             instructorImage: data.instructor_image,
             whatsappNumber: data.whatsapp_number,
             pixelId: data.pixel_id,
+            modules: data.modules,
+            heroSecondaryImage: data.hero_secondary_image,
             course: mappedCourse
         };
         setLp(mappedData);
@@ -186,89 +189,31 @@ const LandingPageViewer: React.FC = () => {
                         <button onClick={scrollToForm} className="bg-red-600 text-white px-10 py-5 rounded-lg font-black text-lg uppercase tracking-wider hover:bg-red-700 hover:scale-105 transition-all shadow-[0_10px_40px_-10px_rgba(220,38,38,0.5)] flex items-center justify-center gap-3 group">
                             Quero me Inscrever <ArrowRight className="group-hover:translate-x-1 transition-transform" strokeWidth={3} />
                         </button>
-                        <a href="#details" className="px-8 py-5 border border-white/20 rounded-lg font-bold text-gray-300 uppercase tracking-widest hover:bg-white/5 transition-all text-center">
+                        <a href="#modules" className="px-8 py-5 border border-white/20 rounded-lg font-bold text-gray-300 uppercase tracking-widest hover:bg-white/5 transition-all text-center">
                             Ver Programação
                         </a>
                      </div>
                  </div>
                  
-                 {/* GLASS FORM (Floating) */}
-                 <div className="lg:col-span-5 relative">
-                     {/* Decorative Glow */}
-                    <div className="absolute -inset-4 bg-gradient-to-tr from-wtech-gold/20 to-transparent rounded-[2rem] blur-2xl"></div>
-                    
-                    <div className="relative bg-white/5 backdrop-blur-2xl border border-white/10 p-8 md:p-10 rounded-2xl shadow-2xl">
-                        <div className="absolute top-0 right-0 p-4 opacity-10">
-                            <WTechLogo />
-                        </div>
-
-                        <div className="mb-8">
-                             <span className="text-wtech-gold font-bold text-xs uppercase tracking-widest">Pré-Inscrição</span>
-                             <h3 className="text-3xl font-black text-white mt-1">Reserve Seu Lugar</h3>
-                             <p className="text-gray-400 text-sm mt-2">Garanta prioridade na formação mais completa do mercado.</p>
-                        </div>
-
-                        {submitted ? (
-                            <div className="text-center py-12 animate-fade-in bg-green-500/10 rounded-xl border border-green-500/20">
-                                <div className="w-20 h-20 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-900/20">
-                                    <Check size={40} strokeWidth={3} />
-                                </div>
-                                <h3 className="text-2xl font-bold text-white mb-2">Inscrição Confirmada!</h3>
-                                <p className="text-green-200">Nossa equipe entrará em contato.</p>
-                            </div>
-                        ) : (
-                            <form onSubmit={handleSubmit} className="space-y-4">
-                                <div className="group">
-                                    <label className="text-xs font-bold text-gray-500 uppercase ml-1 mb-1 block group-focus-within:text-wtech-gold transition-colors">Nome Completo</label>
-                                    <div className="relative">
-                                        <User className="absolute left-4 top-3.5 text-gray-500 group-focus-within:text-white transition-colors" size={18} />
-                                        <input 
-                                            required 
-                                            value={form.name} 
-                                            onChange={e => setForm({...form, name: e.target.value})}
-                                            className="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white font-medium focus:border-wtech-gold/50 focus:ring-1 focus:ring-wtech-gold/50 outline-none transition-all placeholder:text-gray-700" 
-                                            placeholder="Digite seu nome" 
-                                        />
-                                    </div>
-                                </div>
-                                <div className="group">
-                                    <label className="text-xs font-bold text-gray-500 uppercase ml-1 mb-1 block group-focus-within:text-wtech-gold transition-colors">WhatsApp</label>
-                                    <div className="relative">
-                                        <span className="absolute left-4 top-3.5 text-gray-500 font-bold text-xs group-focus-within:text-white transition-colors">BR</span>
-                                        <input 
-                                            required 
-                                            value={form.phone} 
-                                            onChange={e => setForm({...form, phone: e.target.value})}
-                                            className="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white font-medium focus:border-wtech-gold/50 focus:ring-1 focus:ring-wtech-gold/50 outline-none transition-all placeholder:text-gray-700" 
-                                            placeholder="(00) 00000-0000" 
-                                        />
-                                    </div>
-                                </div>
-                                <div className="group">
-                                    <label className="text-xs font-bold text-gray-500 uppercase ml-1 mb-1 block group-focus-within:text-wtech-gold transition-colors">E-mail</label>
-                                    <div className="relative">
-                                        <div className="absolute left-4 top-3.5 text-gray-500 group-focus-within:text-white transition-colors">@</div>
-                                        <input 
-                                            required 
-                                            type="email"
-                                            value={form.email} 
-                                            onChange={e => setForm({...form, email: e.target.value})}
-                                            className="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white font-medium focus:border-wtech-gold/50 focus:ring-1 focus:ring-wtech-gold/50 outline-none transition-all placeholder:text-gray-700" 
-                                            placeholder="seu@email.com" 
-                                        />
-                                    </div>
-                                </div>
-                                
-                                <button className="w-full bg-gradient-to-r from-wtech-gold to-yellow-600 text-black font-black text-lg py-4 rounded-xl hover:shadow-[0_0_20px_rgba(212,175,55,0.4)] hover:scale-[1.02] transition-all uppercase tracking-wide mt-2">
-                                    Continuar Inscrição
-                                </button>
-                                
-                                <div className="text-center text-[10px] text-gray-500 flex items-center justify-center gap-1">
-                                    <ShieldCheck size={10} /> Seus dados estão 100% seguros
-                                </div>
-                            </form>
-                        )}
-                    </div>
+                 {/* GLASS IMAGE (Replaces Form) */}
+                 <div className="lg:col-span-5 relative animate-fade-in-right delay-200">
+                     <div className="absolute -inset-4 bg-gradient-to-tr from-wtech-gold/20 to-transparent rounded-[2rem] blur-2xl opacity-50"></div>
+                     <div className="relative rounded-2xl overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent z-10"></div>
+                        <img 
+                            src={lp.heroSecondaryImage || "https://lp.w-techbrasil.com.br/wp-content/webp-express/webp-images/uploads/2025/09/boas-vindas-2.png.webp"} 
+                            alt="Welcome" 
+                            className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700" 
+                        />
+                         <div className="absolute bottom-6 left-6 z-20">
+                             <div className="inline-block bg-wtech-gold text-black px-3 py-1 font-bold text-xs uppercase tracking-widest rounded-sm mb-2">
+                                 Bem-vindo
+                             </div>
+                             <p className="text-white text-lg font-medium max-w-xs leading-snug">
+                                 Prepare-se para transformar sua carreira com a metodologia W-Tech.
+                             </p>
+                         </div>
+                     </div>
                  </div>
              </div>
         </section>
@@ -378,6 +323,36 @@ const LandingPageViewer: React.FC = () => {
                 </div>
             </div>
         </section>
+
+        {/* MODULES SECTION */}
+        {lp.modules && lp.modules.length > 0 && (
+            <section id="modules" className="py-24 bg-zinc-900 border-t border-white/5">
+                <div className="container mx-auto px-6">
+                    <div className="text-center mb-16">
+                         <span className="text-wtech-gold font-bold uppercase tracking-widest text-xs">Conteúdo Programático</span>
+                         <h2 className="text-4xl font-black text-white uppercase mt-2">O Que Você Vai Aprender</h2>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {lp.modules.map((mod, idx) => (
+                            <div key={idx} className="group relative bg-black border border-white/5 rounded-2xl overflow-hidden hover:border-wtech-gold/30 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
+                                <div className="aspect-video relative overflow-hidden">
+                                     <div className="absolute top-4 right-4 z-20 font-black text-6xl text-white/5 group-hover:text-wtech-gold/10 transition-colors pointer-events-none select-none">
+                                         {idx + 1}
+                                     </div>
+                                    <img src={mod.image} alt={mod.title} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 filter grayscale group-hover:grayscale-0" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-80 group-hover:opacity-60 transition-opacity"></div>
+                                </div>
+                                <div className="p-8 relative">
+                                    <h3 className="text-xl font-bold text-wtech-gold mb-3 uppercase leading-tight group-hover:text-white transition-colors">{mod.title}</h3>
+                                    <p className="text-gray-400 text-sm leading-relaxed">{mod.description}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+        )}
         
         {/* INSTRUCTOR */}
         <section className="py-24 bg-gradient-to-b from-zinc-900 to-black border-t border-white/5">
@@ -455,18 +430,82 @@ const LandingPageViewer: React.FC = () => {
             </div>
         </section>
 
-        {/* CTA FINAL */}
-        <section className="py-24 bg-wtech-gold text-black text-center relative overflow-hidden" id="enroll-form">
-            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+        {/* FORM FINAL SECTION */}
+        <section className="py-24 bg-gradient-to-b from-[#050505] to-black relative overflow-hidden" id="enroll-form">
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-5"></div>
+            
             <div className="container mx-auto px-6 relative z-10">
-                <h2 className="text-4xl md:text-5xl font-black uppercase mb-6 tracking-tight">Não perca essa chance</h2>
-                <p className="text-xl md:text-2xl font-medium mb-8 max-w-2xl mx-auto opacity-90">
-                    Junte-se à elite da mecânica de suspensões. O próximo passo da sua carreira começa aqui.
-                </p>
-                <div className="flex justify-center">
-                    <button onClick={scrollToForm} className="bg-black text-white px-12 py-5 rounded-full font-black text-xl uppercase tracking-wider hover:scale-105 hover:shadow-2xl transition-all flex items-center gap-3">
-                        Garantir Minha Vaga <ArrowRight />
-                    </button>
+                <div className="max-w-2xl mx-auto text-center mb-12">
+                     <h2 className="text-4xl md:text-5xl font-black uppercase mb-4 text-white">Garanta Sua Vaga</h2>
+                     <p className="text-xl text-gray-400">
+                        Junte-se à elite da mecânica de suspensões. Preencha o formulário abaixo para iniciar sua inscrição.
+                    </p>
+                </div>
+
+                <div className="max-w-xl mx-auto bg-white/5 backdrop-blur-xl border border-white/10 p-8 md:p-12 rounded-3xl shadow-2xl relative group">
+                     <div className="absolute -inset-1 bg-gradient-to-r from-wtech-gold to-transparent opacity-20 rounded-3xl blur group-hover:opacity-40 transition-opacity duration-1000"></div>
+                     <div className="relative">
+                        {submitted ? (
+                                <div className="text-center py-12 animate-fade-in bg-green-500/10 rounded-xl border border-green-500/20">
+                                    <div className="w-20 h-20 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-900/20">
+                                        <Check size={40} strokeWidth={3} />
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-white mb-2">Inscrição Recebida!</h3>
+                                    <p className="text-green-200">Em breve entraremos em contato pelo WhatsApp.</p>
+                                </div>
+                        ) : (
+                                <form onSubmit={handleSubmit} className="space-y-6">
+                                    <div className="group-form">
+                                        <label className="text-xs font-bold text-gray-500 uppercase ml-1 mb-2 block">Nome Completo</label>
+                                        <div className="relative">
+                                            <User className="absolute left-4 top-3.5 text-gray-500" size={20} />
+                                            <input 
+                                                required 
+                                                value={form.name} 
+                                                onChange={e => setForm({...form, name: e.target.value})}
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white focus:border-wtech-gold/50 focus:ring-1 focus:ring-wtech-gold/50 outline-none transition-all placeholder:text-gray-700" 
+                                                placeholder="Digite seu nome" 
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="group-form">
+                                        <label className="text-xs font-bold text-gray-500 uppercase ml-1 mb-2 block">WhatsApp</label>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-4 text-gray-500 font-bold text-xs">BR</span>
+                                            <input 
+                                                required 
+                                                value={form.phone} 
+                                                onChange={e => setForm({...form, phone: e.target.value})}
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white focus:border-wtech-gold/50 focus:ring-1 focus:ring-wtech-gold/50 outline-none transition-all placeholder:text-gray-700" 
+                                                placeholder="(00) 00000-0000" 
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="group-form">
+                                        <label className="text-xs font-bold text-gray-500 uppercase ml-1 mb-2 block">E-mail</label>
+                                        <div className="relative">
+                                            <div className="absolute left-4 top-4 text-gray-500">@</div>
+                                            <input 
+                                                required 
+                                                type="email"
+                                                value={form.email} 
+                                                onChange={e => setForm({...form, email: e.target.value})}
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white focus:border-wtech-gold/50 focus:ring-1 focus:ring-wtech-gold/50 outline-none transition-all placeholder:text-gray-700" 
+                                                placeholder="seu@email.com" 
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    <button className="w-full bg-wtech-gold text-black font-black text-xl py-5 rounded-xl hover:bg-white hover:scale-[1.02] transition-all uppercase tracking-wide shadow-xl flex items-center justify-center gap-3">
+                                        Fazer Pré-Inscrição <ArrowRight strokeWidth={3} />
+                                    </button>
+                                    
+                                    <div className="text-center text-xs text-gray-600 flex items-center justify-center gap-2">
+                                        <ShieldCheck size={12} /> Seus dados estão protegidos. Sem spam.
+                                    </div>
+                                </form>
+                        )}
+                     </div>
                 </div>
             </div>
         </section>
