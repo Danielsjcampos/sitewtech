@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserRole } from '../types';
-import type { Lead, Mechanic, Order, User as UserType, Transaction, Course, BlogPost, PostComment, LandingPage, Enrollment, Role, SystemConfig } from '../types';
+import type { Lead, Mechanic, Order, User as UserType, Transaction, Course, BlogPost, PostComment, LandingPage, Enrollment, Role, SystemConfig, Event } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { seedDatabase } from '../lib/seedData';
 import { useAuth } from '../context/AuthContext';
@@ -117,7 +117,7 @@ const DashboardView = () => {
             // Date Filter Logic
             const now = new Date();
             let startDate = new Date(0).toISOString(); // Default All Time
-            
+
             if (filterPeriod === '30d') {
                 const d = new Date();
                 d.setDate(d.getDate() - 30);
@@ -192,8 +192,8 @@ const DashboardView = () => {
                 { date: 'Jun', value: realized } // Current
             ]);
 
-             // Leads History (Mock for now, normally grouped by created_at)
-             setLeadsHistory([
+            // Leads History (Mock for now, normally grouped by created_at)
+            setLeadsHistory([
                 { date: 'Jan', value: Math.floor(leadsCount * 0.1) },
                 { date: 'Fev', value: Math.floor(leadsCount * 0.15) },
                 { date: 'Mar', value: Math.floor(leadsCount * 0.2) },
@@ -247,8 +247,8 @@ const DashboardView = () => {
             {/* Filter Header */}
             <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold text-gray-800">Visão Geral</h2>
-                <select 
-                    value={filterPeriod} 
+                <select
+                    value={filterPeriod}
                     onChange={(e) => setFilterPeriod(e.target.value)}
                     className="border border-gray-300 rounded-lg p-2 text-sm font-bold text-gray-600 bg-white"
                 >
@@ -305,7 +305,7 @@ const DashboardView = () => {
                             <p className="text-gray-500 text-xs">Desempenho de captação de alunos.</p>
                         </div>
                         <div className="flex items-center gap-2 text-purple-600 font-bold bg-purple-50 px-3 py-1 rounded-full text-xs">
-                             Taxa: {conversionRate}%
+                            Taxa: {conversionRate}%
                         </div>
                     </div>
                     <div className="h-48 flex items-end">
@@ -326,7 +326,7 @@ const DashboardView = () => {
                     </div>
                 </div>
                 <div className="h-64 flex items-end">
-                     {/* Using revenue history here again as placeholder for mechanics growth or total revenue */}
+                    {/* Using revenue history here again as placeholder for mechanics growth or total revenue */}
                     <AreaChart data={revenueHistory} color="#d4af37" />
                 </div>
             </div>
@@ -483,8 +483,8 @@ const CRMView = () => {
 
         // Privacy Logic: If not Admin (Level > 8 or Super Admin), only see assigned leads
         // Checking explicitly for Level 10 as requested
-        const hasFullAccess = 
-            (typeof user?.role !== 'string' && user?.role?.level >= 10) || 
+        const hasFullAccess =
+            (typeof user?.role !== 'string' && user?.role?.level >= 10) ||
             (typeof user?.role !== 'string' && user?.role?.name === 'Super Admin') ||
             (typeof user?.role !== 'string' && user?.role?.permissions?.admin_access);
 
@@ -788,9 +788,9 @@ const BlogManagerView = () => {
 
     const handleDeletePost = async (id: string) => {
         if (!confirm("Tem certeza que deseja excluir este post permanentemente?")) return;
-        
+
         const { error } = await supabase.from('SITE_BlogPosts').delete().eq('id', id);
-        
+
         if (error) {
             alert("Erro ao excluir: " + error.message);
         } else {
@@ -1200,7 +1200,7 @@ const BlogManagerView = () => {
                                     >
                                         <Edit size={14} /> Editar
                                     </button>
-                                     <button
+                                    <button
                                         onClick={() => handleDeletePost(post.id)}
                                         className="text-red-600 font-bold hover:underline flex items-center gap-1 ml-4"
                                     >
@@ -1397,11 +1397,14 @@ const CoursesManagerView = () => {
         enrollmentsCount: 0,
         inProgressCount: 0,
         revenue: 0,
-        studentsList: [] as any[]
+        expenses: 0,
+        netResult: 0,
+        studentsList: [] as any[],
+        expenseList: [] as any[]
     });
 
     const { user } = useAuth();
-    
+
     // Permission Check helper specifically for Level 10
     const isLevel10 = () => {
         return (typeof user?.role !== 'string' && user?.role?.level >= 10) || (typeof user?.role !== 'string' && user?.role?.name === 'Super Admin');
@@ -1415,14 +1418,24 @@ const CoursesManagerView = () => {
         try {
             // 1. Fetch Enrollments
             const { data: enrollments } = await supabase.from('SITE_Enrollments').select('*').eq('course_id', course.id);
-            
+
             // 2. Fetch Leads (Heuristic: Match context_id containing title)
             const { data: leads } = await supabase.from('SITE_Leads').select('*').ilike('context_id', `%${course.title}%`);
+
+            // 3. Fetch Expenses
+            const { data: expenses } = await supabase
+                .from('SITE_Transactions')
+                .select('*')
+                .eq('course_id', course.id)
+                .eq('type', 'Expense');
 
             const totalEnrollments = enrollments?.length || 0;
             const confirmedEnrollments = enrollments?.filter((e: any) => e.status === 'Confirmed' || e.status === 'CheckedIn') || [];
             const revenue = confirmedEnrollments.reduce((acc: number, curr: any) => acc + (curr.amount_paid || 0), 0);
-            
+
+            const totalExpenses = expenses?.reduce((acc: number, curr: any) => acc + Number(curr.amount), 0) || 0;
+            const netResult = revenue - totalExpenses;
+
             const totalLeads = leads?.length || 0;
             const inProgress = leads?.filter((l: any) => ['New', 'Contacted', 'Negotiating'].includes(l.status)).length || 0;
 
@@ -1439,7 +1452,10 @@ const CoursesManagerView = () => {
                 enrollmentsCount: confirmedEnrollments.length,
                 inProgressCount: inProgress,
                 revenue,
-                studentsList: students
+                expenses: totalExpenses,
+                netResult,
+                studentsList: students,
+                expenseList: expenses || []
             });
 
         } catch (e) {
@@ -1740,6 +1756,157 @@ const CoursesManagerView = () => {
 
 
 
+    const printSingleCourseReport = () => {
+        if (!reportCourse) return;
+        const printWindow = window.open('', '', 'width=900,height=650');
+        if (!printWindow) return;
+
+        const html = `
+        <html>
+        <head>
+            <title>Relatório Gerencial - ${reportCourse.title}</title>
+            <style>
+                body { font-family: 'Helvetica', sans-serif; padding: 40px; color: #333; }
+                .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #D4AF37; padding-bottom: 20px; }
+                .header h1 { margin: 0; font-size: 24px; text-transform: uppercase; }
+                .header p { color: #666; font-size: 14px; margin-top: 5px; }
+                
+                .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 40px; }
+                .kpi-card { border: 1px solid #eee; padding: 15px; border-radius: 8px; background: #f9f9f9; }
+                .kpi-label { font-size: 12px; font-weight: bold; color: #666; text-transform: uppercase; }
+                .kpi-value { font-size: 24px; font-weight: bold; margin: 5px 0; }
+                .kpi-sub { font-size: 11px; color: #888; }
+                .text-green { color: #166534; }
+                .text-red { color: #991b1b; }
+                .text-blue { color: #1e40af; }
+                
+                .section-title { font-size: 16px; font-weight: bold; margin-bottom: 15px; border-left: 4px solid #D4AF37; padding-left: 10px; margin-top: 30px; }
+                
+                table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 30px; }
+                th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+                th { background-color: #f2f2f2; font-weight: bold; text-transform: uppercase; font-size: 10px; }
+                
+                .footer { margin-top: 50px; text-align: center; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 20px; }
+                
+                @media print {
+                    button { display: none; }
+                    body { padding: 0; }
+                    .no-print { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>${reportCourse.title}</h1>
+                <p>Relatório de Fechamento e Resultados - Gerado em ${new Date().toLocaleString('pt-BR')}</p>
+            </div>
+
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-label">Receita Bruta</div>
+                    <div class="kpi-value text-blue">R$ ${reportData.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                    <div class="kpi-sub">${reportData.enrollmentsCount} vendas confirmadas</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Despesas Totais</div>
+                    <div class="kpi-value text-red">R$ ${(reportData.expenses || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                    <div class="kpi-sub">${reportData.expenseList?.length || 0} lançamentos</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Resultado Líquido</div>
+                    <div class="kpi-value ${(reportData.netResult || 0) >= 0 ? 'text-green' : 'text-red'}">
+                        R$ ${(reportData.netResult || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                    <div class="kpi-sub">Lucro final da operação</div>
+                </div>
+                
+                 <div class="kpi-card">
+                    <div class="kpi-label">Leads Captados</div>
+                    <div class="kpi-value">${reportData.leadsCount}</div>
+                    <div class="kpi-sub">Interessados no período</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Taxa de Conversão</div>
+                    <div class="kpi-value">${reportData.leadsCount > 0 ? ((reportData.enrollmentsCount / reportData.leadsCount) * 100).toFixed(1) : 0}%</div>
+                    <div class="kpi-sub">Eficiência de Vendas</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Status</div>
+                    <div class="kpi-value" style="font-size: 18px;">${reportCourse.status}</div>
+                    <div class="kpi-sub">Situação atual</div>
+                </div>
+            </div>
+
+            <div class="section-title">Detalhamento Financeiro (Despesas)</div>
+            ${reportData.expenseList && reportData.expenseList.length > 0 ? `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Descrição</th>
+                        <th>Categoria</th>
+                        <th>Valor</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${reportData.expenseList.map((e: any) => `
+                    <tr>
+                        <td>${new Date(e.date).toLocaleDateString()}</td>
+                        <td>${e.description}</td>
+                        <td>${e.category}</td>
+                        <td style="color: #991b1b; font-weight: bold;">- R$ ${Number(e.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                    `).join('')}
+                    <tr style="background-color: #fcebeb;">
+                        <td colspan="3" style="text-align: right; font-weight: bold;">TOTAL DESPESAS:</td>
+                        <td style="color: #991b1b; font-weight: bold;">R$ ${(reportData.expenses || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                </tbody>
+            </table>
+            ` : '<p style="color: #999; font-style: italic;">Nenhuma despesa lançada para este curso.</p>'}
+
+            <div class="section-title">Lista de Inscritos</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Aluno</th>
+                        <th>Email</th>
+                        <th>Telefone</th>
+                        <th>Status</th>
+                        <th>Valor Pago</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${reportData.studentsList?.map((s: any) => `
+                    <tr>
+                        <td><strong>${s.name}</strong></td>
+                        <td>${s.email}</td>
+                        <td>${s.phone}</td>
+                        <td>${s.status}</td>
+                        <td>R$ ${s.paid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                    `).join('')}
+                    <tr style="background-color: #f0fdf4;">
+                        <td colspan="4" style="text-align: right; font-weight: bold;">TOTAL RECEITA:</td>
+                        <td style="color: #166534; font-weight: bold;">R$ ${reportData.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="footer">
+                W-TECH Brasil Experience - Sistema de Gestão Integrada
+            </div>
+
+            <script>
+                window.onload = function() { window.print(); window.close(); }
+            </script>
+        </body>
+        </html>
+      `;
+        printWindow.document.write(html);
+        printWindow.document.close();
+    };
+
     const handleViewEnrollments = async (course: Course) => {
         setCurrentCourse(course);
         setShowEnrollments(true);
@@ -1788,7 +1955,7 @@ const CoursesManagerView = () => {
         }]);
 
         if (err2) {
-             console.error(err2);
+            console.error(err2);
         }
 
         // Update Local State
@@ -2237,7 +2404,7 @@ const CoursesManagerView = () => {
                     </table>
                 </div>
 
-                {/* Settle Modal */ }
+                {/* Settle Modal */}
                 {
                     settleModal.isOpen && (
                         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
@@ -2398,35 +2565,51 @@ const CoursesManagerView = () => {
                             ) : (
                                 <div className="space-y-8">
                                     {/* KPI Grid */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-blue-500">
+                                            <p className="text-gray-500 text-xs font-bold uppercase mb-1">Receita Bruta</p>
+                                            <h3 className="text-3xl font-black text-gray-900">R$ {reportData.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                                            <p className="text-xs text-blue-500 font-medium mt-1">Total de Vendas ({reportData.enrollmentsCount})</p>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-red-500">
+                                            <p className="text-gray-500 text-xs font-bold uppercase mb-1">Despesas Totais</p>
+                                            <h3 className="text-3xl font-black text-gray-900">R$ {(reportData.expenses || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                                            <p className="text-xs text-red-500 font-medium mt-1">Custos operacionais</p>
+                                        </div>
+                                        <div className={`bg-white p-6 rounded-xl shadow-sm border border-gray-100 border-l-4 ${(reportData.netResult || 0) >= 0 ? 'border-l-green-500' : 'border-l-red-500'}`}>
+                                            <p className="text-gray-500 text-xs font-bold uppercase mb-1">Resultado Líquido</p>
+                                            <h3 className={`text-3xl font-black ${(reportData.netResult || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                R$ {(reportData.netResult || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </h3>
+                                            <p className="text-xs text-gray-400 font-medium mt-1">Lucro da operação</p>
+                                        </div>
+
+                                        {/* Row 2 */}
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-wtech-gold">
                                             <p className="text-gray-500 text-xs font-bold uppercase mb-1">Total de Leads</p>
                                             <h3 className="text-3xl font-black text-gray-900">{reportData.leadsCount}</h3>
-                                            <p className="text-xs text-blue-500 font-medium mt-1">Interessados captados</p>
-                                        </div>
-                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-green-500">
-                                            <p className="text-gray-500 text-xs font-bold uppercase mb-1">Vendas Fechadas</p>
-                                            <h3 className="text-3xl font-black text-gray-900">{reportData.enrollmentsCount}</h3>
-                                            <p className="text-xs text-green-500 font-medium mt-1">
+                                            <p className="text-xs text-yellow-600 font-medium mt-1">
                                                 Conversão: {reportData.leadsCount > 0 ? ((reportData.enrollmentsCount / reportData.leadsCount) * 100).toFixed(1) : 0}%
                                             </p>
                                         </div>
-                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-yellow-500">
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-purple-500">
                                             <p className="text-gray-500 text-xs font-bold uppercase mb-1">Em Atendimento</p>
                                             <h3 className="text-3xl font-black text-gray-900">{reportData.inProgressCount}</h3>
-                                            <p className="text-xs text-yellow-600 font-medium mt-1">Oportunidades abertas</p>
+                                            <p className="text-xs text-purple-600 font-medium mt-1">Funil de Vendas</p>
                                         </div>
-                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-red-500">
-                                            <p className="text-gray-500 text-xs font-bold uppercase mb-1">Receita Total</p>
-                                            <h3 className="text-3xl font-black text-gray-900">R$ {reportData.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-                                            <p className="text-xs text-gray-400 font-medium mt-1">Confirmada em caixa</p>
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-gray-500">
+                                            <p className="text-gray-500 text-xs font-bold uppercase mb-1">Custo por Lead</p>
+                                            <h3 className="text-3xl font-black text-gray-900">
+                                                R$ {reportData.leadsCount > 0 ? ((reportData.expenses || 0) / reportData.leadsCount).toFixed(2) : '0,00'}
+                                            </h3>
+                                            <p className="text-xs text-gray-400 font-medium mt-1">Eficiência de Mkt</p>
                                         </div>
                                     </div>
 
                                     {/* Charts / Funnel (Simplified Visual) */}
                                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                                       <h4 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><Filter size={18} /> Funil de Vendas do Curso</h4>
-                                       <div className="flex flex-col gap-2">
+                                        <h4 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><Filter size={18} /> Funil de Vendas do Curso</h4>
+                                        <div className="flex flex-col gap-2">
                                             {/* Top Funnel */}
                                             <div className="w-full bg-blue-50 rounded-lg p-3 relative overflow-hidden group">
                                                 <div className="flex justify-between relative z-10 text-blue-900 font-bold text-sm">
@@ -2451,23 +2634,23 @@ const CoursesManagerView = () => {
                                                 </div>
                                                 <div className="absolute top-0 left-0 h-full bg-green-200 w-full opacity-30"></div>
                                             </div>
-                                       </div>
+                                        </div>
                                     </div>
 
                                     {/* Student List Table */}
                                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                                         <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
                                             <h4 className="font-bold text-gray-800 flex items-center gap-2"><Users size={18} /> Lista de Inscritos ({reportData.studentsList?.length || 0})</h4>
-                                            <button 
+                                            <button
                                                 onClick={() => {
                                                     const csv = [
                                                         ['Nome', 'Email', 'Telefone', 'Status', 'Valor Pago', 'Total Curso'],
                                                         ...reportData.studentsList.map((s: any) => [
-                                                            s.name, 
-                                                            s.email, 
-                                                            s.phone, 
-                                                            s.status, 
-                                                            s.paid, 
+                                                            s.name,
+                                                            s.email,
+                                                            s.phone,
+                                                            s.status,
+                                                            s.paid,
                                                             reportCourse.price
                                                         ])
                                                     ].map(e => e.join(',')).join('\n');
@@ -2521,8 +2704,8 @@ const CoursesManagerView = () => {
                                 </div>
                             )}
                         </div>
-                         <div className="p-4 border-t border-gray-100 flex justify-end bg-gray-50">
-                            <button onClick={() => window.print()} className="bg-wtech-black text-white px-6 py-2 rounded-lg font-bold hover:bg-gray-800 flex items-center gap-2">
+                        <div className="p-4 border-t border-gray-100 flex justify-end bg-gray-50">
+                            <button onClick={printSingleCourseReport} className="bg-wtech-black text-white px-6 py-2 rounded-lg font-bold hover:bg-gray-800 flex items-center gap-2">
                                 <Printer size={16} /> Imprimir Relatório
                             </button>
                         </div>
@@ -2804,7 +2987,7 @@ const MechanicsView = () => {
     // --- Permissions Helper ---
     const hasPermission = (key: string) => {
         if (!user || !user.role) return false;
-        
+
         // Handle String Role (Legacy/Simple Auth)
         if (typeof user.role === 'string') {
             return user.role === 'Super Admin' || user.role === 'Admin';
@@ -2978,30 +3161,30 @@ const MechanicsView = () => {
 
     const handleQuickGeocode = async (mech: Mechanic) => {
         if (!mech.city || !mech.state) return alert('Cidade/Estado incompletos.');
-        
+
         try {
-             // 1. Try Exact Address
-             const addressQuery = `${mech.street || ''}, ${mech.number || ''}, ${mech.city}, ${mech.state}, Brazil`;
-             let response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressQuery)}`);
-             let data = await response.json();
+            // 1. Try Exact Address
+            const addressQuery = `${mech.street || ''}, ${mech.number || ''}, ${mech.city}, ${mech.state}, Brazil`;
+            let response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressQuery)}`);
+            let data = await response.json();
 
-             // 2. Fallback to City Center
-             if (!data || data.length === 0) {
-                 const cityQuery = `${mech.city}, ${mech.state}, Brazil`;
-                 response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityQuery)}`);
-                 data = await response.json();
-                 if (data && data.length > 0) alert('Endereço exato não encontrado. PIN posicionado no centro da cidade.');
-             }
+            // 2. Fallback to City Center
+            if (!data || data.length === 0) {
+                const cityQuery = `${mech.city}, ${mech.state}, Brazil`;
+                response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityQuery)}`);
+                data = await response.json();
+                if (data && data.length > 0) alert('Endereço exato não encontrado. PIN posicionado no centro da cidade.');
+            }
 
-             if (data && data.length > 0) {
-                 const lat = parseFloat(data[0].lat);
-                 const lng = parseFloat(data[0].lon);
-                 await supabase.from('SITE_Mechanics').update({ latitude: lat, longitude: lng }).eq('id', mech.id);
-                 setMechanics(prev => prev.map(m => m.id === mech.id ? { ...m, latitude: lat, longitude: lng } : m));
-                 alert('GPS Atualizado!');
-             } else {
-                 alert('Endereço não encontrado.');
-             }
+            if (data && data.length > 0) {
+                const lat = parseFloat(data[0].lat);
+                const lng = parseFloat(data[0].lon);
+                await supabase.from('SITE_Mechanics').update({ latitude: lat, longitude: lng }).eq('id', mech.id);
+                setMechanics(prev => prev.map(m => m.id === mech.id ? { ...m, latitude: lat, longitude: lng } : m));
+                alert('GPS Atualizado!');
+            } else {
+                alert('Endereço não encontrado.');
+            }
         } catch (e) {
             alert('Erro ao buscar.');
         }
@@ -3091,7 +3274,7 @@ const MechanicsView = () => {
             (m.city || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             (m.state || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             (String(m.group || '').toLowerCase().includes(searchTerm.toLowerCase()));
-        
+
         const matchesGPS = !filterMissingGPS || (!m.latitude || !m.longitude || m.latitude === 0);
 
         return matchesSearch && matchesGPS;
@@ -3250,11 +3433,11 @@ const MechanicsView = () => {
                             onChange={e => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <button 
+                    <button
                         onClick={() => setFilterMissingGPS(!filterMissingGPS)}
                         className={`px-4 py-2 rounded font-bold flex items-center gap-2 border transition-all ${filterMissingGPS ? 'bg-orange-100 border-orange-200 text-orange-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                     >
-                        <MapPin size={18} className={filterMissingGPS ? "fill-orange-500" : ""} /> 
+                        <MapPin size={18} className={filterMissingGPS ? "fill-orange-500" : ""} />
                         {filterMissingGPS ? 'Mostrando Sem GPS' : 'Filtrar Sem GPS'}
                     </button>
                 </div>
@@ -3363,7 +3546,7 @@ const FinanceView = () => {
     // --- Permissions Helper ---
     const hasPermission = (key: string) => {
         if (!user || !user.role) return false;
-        
+
         // Handle String Role
         if (typeof user.role === 'string') {
             return user.role === 'Super Admin' || user.role === 'Admin';
@@ -3377,9 +3560,23 @@ const FinanceView = () => {
         return !!(user.role.permissions && user.role.permissions[key]);
     };
 
+    const [courses, setCourses] = useState<Course[]>([]);
+    const [events, setEvents] = useState<Event[]>([]);
+    const [filterReference, setFilterReference] = useState<{ type: 'Course' | 'Event' | 'All', id: string }>({ type: 'All', id: '' });
+
+    // Form State for Link
+    const [linkType, setLinkType] = useState<'None' | 'Course' | 'Event'>('None');
+    const [linkedId, setLinkedId] = useState('');
+
     useEffect(() => {
         const fetchFinance = async () => {
             setLoading(true);
+
+            // Fetch Reference Data
+            const { data: coursesData } = await supabase.from('SITE_Courses').select('id, title');
+            const { data: eventsData } = await supabase.from('SITE_Events').select('id, title');
+            setCourses(coursesData || []);
+            setEvents(eventsData || []);
 
             // 1. Transactions (Real)
             const { data: trans } = await supabase.from('SITE_Transactions').select('*');
@@ -3399,17 +3596,12 @@ const FinanceView = () => {
                 if (price > paidTotal) pending += (price - paidTotal);
 
                 // Check for Real Transactions linked to this enrollment
-                // Note: We need to ensure enrollment_id is being saved in transactions for this to work perfectly.
-                // If the user hasn't run the SQL update, enrollment_id might be missing in older transactions, 
-                // but handleSettleBalance sends it.
                 const linkedTransAmount = realTransactions
                     .filter(t => t.enrollment_id === e.id && t.type === 'Income')
                     .reduce((acc, curr) => acc + curr.amount, 0);
 
-                // Calculate "Unrecorded" Payment (e.g., Initial Signal paid before we had the transactions table)
                 const unrecordedAmount = paidTotal - linkedTransAmount;
 
-                // Create Virtual Transaction ONLY for the unrecorded portion (gap)
                 if (unrecordedAmount > 0) {
                     virtualTransactions.push({
                         id: `virt_${e.id}`, // Virtual ID
@@ -3420,7 +3612,8 @@ const FinanceView = () => {
                         date: e.created_at,
                         payment_method: e.payment_method || 'Indefinido',
                         enrollment_id: e.id,
-                        status: 'Completed' // Use 'Completed' instead of 'Paid' to match type
+                        course_id: e.course_id, // Link virtual transaction to course automatically
+                        status: 'Completed'
                     });
                 }
             });
@@ -3441,13 +3634,21 @@ const FinanceView = () => {
         e.preventDefault();
         if (!newTrans.amount || !newTrans.description) return;
 
-        const { data, error } = await supabase.from('SITE_Transactions').insert([newTrans]).select();
+        const transactionToSave = {
+            ...newTrans,
+            course_id: (linkType === 'Course' && linkedId) ? linkedId : null,
+            event_id: (linkType === 'Event' && linkedId) ? linkedId : null
+        };
+
+        const { data, error } = await supabase.from('SITE_Transactions').insert([transactionToSave]).select();
         if (error) {
             alert('Erro ao salvar: ' + error.message);
         } else if (data) {
             setTransactions([data[0], ...transactions]);
             setShowAddModal(false);
             setNewTrans({ type: 'Income', date: new Date().toISOString().split('T')[0] });
+            setLinkType('None');
+            setLinkedId('');
         }
     };
 
@@ -3470,7 +3671,18 @@ const FinanceView = () => {
         link.click();
     };
 
-    const filteredTransactions = transactions.filter(t => !filterDate || t.date.startsWith(filterDate));
+    const filteredTransactions = transactions.filter(t => {
+        const matchesDate = !filterDate || t.date.startsWith(filterDate);
+        let matchesRef = true;
+
+        if (filterReference.type === 'Course') {
+            matchesRef = t.course_id === filterReference.id;
+        } else if (filterReference.type === 'Event') {
+            matchesRef = t.event_id === filterReference.id;
+        }
+
+        return matchesDate && matchesRef;
+    });
 
     // Summary Calcs
     const income = filteredTransactions.filter(t => t.type === 'Income').reduce((acc, curr) => acc + curr.amount, 0);
@@ -3485,7 +3697,29 @@ const FinanceView = () => {
                     <h2 className="text-3xl font-black text-gray-900 tracking-tighter">Fluxo de Caixa</h2>
                     <p className="text-gray-500 font-medium">Gestão financeira completa e transparente.</p>
                 </div>
-                <div className="flex flex-wrap gap-3 w-full md:w-auto">
+                <div className="flex flex-wrap gap-3 w-full md:w-auto items-center">
+                    {/* Course/Event Filter */}
+                    <select
+                        className="border border-gray-300 rounded-lg p-2 text-sm font-bold text-gray-600 bg-white max-w-[200px]"
+                        value={filterReference.type === 'All' ? 'All' : `${filterReference.type}:${filterReference.id}`}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'All') setFilterReference({ type: 'All', id: '' });
+                            else {
+                                const [type, id] = val.split(':');
+                                setFilterReference({ type: type as 'Course' | 'Event', id });
+                            }
+                        }}
+                    >
+                        <option value="All">Todos os Lançamentos</option>
+                        <optgroup label="Cursos">
+                            {courses.map(c => <option key={c.id} value={`Course:${c.id}`}>{c.title}</option>)}
+                        </optgroup>
+                        <optgroup label="Eventos">
+                            {events.map(ev => <option key={ev.id} value={`Event:${ev.id}`}>{ev.title}</option>)}
+                        </optgroup>
+                    </select>
+
                     <input type="date" className="border rounded-lg px-3 py-2 text-sm bg-white" value={filterDate} onChange={e => setFilterDate(e.target.value)} />
                     {hasPermission('financial_export') && (
                         <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 font-bold text-sm bg-white">
@@ -3598,24 +3832,73 @@ const FinanceView = () => {
                                     </select>
                                 </div>
                                 <div>
+                                    <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Categoria</label>
+                                    <select className="w-full p-2 border rounded-lg" value={newTrans.category} onChange={e => setNewTrans({ ...newTrans, category: e.target.value as any })}>
+                                        <option value="Sales">Vendas</option>
+                                        <option value="Operational">Operacional</option>
+                                        <option value="Marketing">Marketing</option>
+                                        <option value="Payroll">Folha de Pgto</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Link to Course/Event */}
+                            <div>
+                                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Vincular a (Opcional)</label>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <select
+                                        className="w-full p-2 border rounded-lg"
+                                        value={linkType}
+                                        onChange={e => {
+                                            setLinkType(e.target.value as any);
+                                            setLinkedId('');
+                                        }}
+                                    >
+                                        <option value="None">Sem Vínculo</option>
+                                        <option value="Course">Curso</option>
+                                        <option value="Event">Evento</option>
+                                    </select>
+
+                                    {linkType === 'Course' && (
+                                        <select
+                                            className="w-full p-2 border rounded-lg"
+                                            value={linkedId}
+                                            onChange={e => setLinkedId(e.target.value)}
+                                        >
+                                            <option value="">Selecione o Curso...</option>
+                                            {courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+                                        </select>
+                                    )}
+
+                                    {linkType === 'Event' && (
+                                        <select
+                                            className="w-full p-2 border rounded-lg"
+                                            value={linkedId}
+                                            onChange={e => setLinkedId(e.target.value)}
+                                        >
+                                            <option value="">Selecione o Evento...</option>
+                                            {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+                                        </select>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
                                     <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Data</label>
                                     <input type="date" required className="w-full p-2 border rounded-lg" value={newTrans.date} onChange={e => setNewTrans({ ...newTrans, date: e.target.value })} />
                                 </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Descrição</label>
-                                <input required className="w-full p-2 border rounded-lg" placeholder="Ex: Venda Curso X" value={newTrans.description || ''} onChange={e => setNewTrans({ ...newTrans, description: e.target.value })} />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Valor (R$)</label>
                                     <input type="number" step="0.01" required className="w-full p-2 border rounded-lg font-bold" value={newTrans.amount || ''} onChange={e => setNewTrans({ ...newTrans, amount: parseFloat(e.target.value) })} />
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Categoria</label>
-                                    <input className="w-full p-2 border rounded-lg" placeholder="Ex: Marketing" value={newTrans.category || ''} onChange={e => setNewTrans({ ...newTrans, category: e.target.value })} />
-                                </div>
                             </div>
+
+                            <div>
+                                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Descrição</label>
+                                <input required className="w-full p-2 border rounded-lg" placeholder="Ex: Venda Curso X" value={newTrans.description || ''} onChange={e => setNewTrans({ ...newTrans, description: e.target.value })} />
+                            </div>
+
                             <div>
                                 <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Método Pagamento</label>
                                 <select className="w-full p-2 border rounded-lg" value={newTrans.payment_method || ''} onChange={e => setNewTrans({ ...newTrans, payment_method: e.target.value })}>
@@ -3627,6 +3910,7 @@ const FinanceView = () => {
                                     <option value="Transferência">Transferência</option>
                                 </select>
                             </div>
+
                             <div className="flex justify-end gap-2 mt-6">
                                 <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-lg font-bold">Cancelar</button>
                                 <button type="submit" className="px-6 py-2 bg-wtech-black text-white rounded-lg font-bold shadow hover:bg-gray-800">Salvar Transação</button>
@@ -3634,8 +3918,9 @@ const FinanceView = () => {
                         </form>
                     </div>
                 </div>
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 };
 
@@ -4460,7 +4745,7 @@ const TeamView = () => {
     // --- Permissions Helper ---
     const hasPermission = (key: string) => {
         if (!user || !user.role) return false;
-        
+
         // Handle String Role
         if (typeof user.role === 'string') {
             return user.role === 'Super Admin' || user.role === 'Admin';

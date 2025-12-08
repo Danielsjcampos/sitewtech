@@ -202,6 +202,17 @@ export interface Transaction {
   status: 'Completed' | 'Pending';
   payment_method?: string; // Mapped from payment_method
   enrollment_id?: string; // Optional link to enrollment
+  course_id?: string; // Optional link to course
+  event_id?: string; // Optional link to event
+}
+
+export interface Event {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
+  location: string;
+  created_at: string;
 }
 
 export interface SystemConfig {
