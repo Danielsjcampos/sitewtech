@@ -24,7 +24,8 @@ const Contact: React.FC = () => {
                 status: 'New',
                 context_id: form.message.slice(0, 50) + '...',
                 tags: ['contact_page'],
-                origin: window.location.href
+                origin: window.location.href,
+                assigned_to: null, // FORCE NULL
             };
 
             // 1. Insert into CRM

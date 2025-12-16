@@ -21,6 +21,11 @@ import { generateBlogPost } from '../lib/gemini';
 import { LandingPageEditor } from './LandingPageEditor';
 import { useSettings } from '../context/SettingsContext';
 import EmailMarketingView from '../components/EmailMarketingView';
+import DashboardView from '../components/admin/Dashboard/DashboardView';
+import CRMView from '../components/admin/CRM/CRMView';
+import BlogManagerView from '../components/admin/Blog/BlogManagerView';
+import DevUserSwitcher from '../components/admin/DevUserSwitcher';
+
 
 // --- Types for Local State ---
 declare const L: any;
@@ -55,22 +60,34 @@ const SidebarItem = ({
     icon: Icon,
     label,
     active,
-    onClick
+    onClick,
+    collapsed
 }: {
     icon: any,
     label: string,
     active: boolean,
-    onClick: () => void
+    onClick: () => void,
+    collapsed?: boolean
 }) => (
     <button
         onClick={onClick}
-        className={`w-full flex items-center p-3 my-1 rounded-lg transition-all duration-200 group ${active
+        title={collapsed ? label : undefined}
+        className={`w-full flex items-center ${collapsed ? 'justify-center px-0' : 'px-3'} py-3 my-1 rounded-lg transition-all duration-200 group ${active
             ? 'bg-gradient-to-r from-wtech-gold to-yellow-600 text-black font-bold shadow-lg shadow-yellow-500/20'
             : 'text-gray-400 hover:bg-gray-800 hover:text-white'
             }`}
     >
-        <Icon size={20} className={`${active ? 'text-black' : 'text-gray-500 group-hover:text-wtech-gold'} mr-3`} />
-        <span className="text-sm tracking-wide">{label}</span>
+        <Icon size={20} className={`${active ? 'text-black' : 'text-gray-500 group-hover:text-wtech-gold'} ${collapsed ? '' : 'mr-3'}`} />
+        {!collapsed && <span className="text-sm tracking-wide transition-opacity duration-200">{label}</span>}
+    </button>
+);
+
+const MobileMenuItem = ({ icon: Icon, label, onClick }: { icon: any, label: string, onClick: () => void }) => (
+    <button onClick={onClick} className="flex flex-col items-center gap-3 group">
+        <div className="w-16 h-16 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-white backdrop-blur-md shadow-lg group-active:scale-95 transition-transform group-hover:bg-wtech-gold group-hover:text-black group-hover:border-wtech-gold">
+            <Icon size={28} />
+        </div>
+        <span className="text-xs font-medium text-white shadow-black drop-shadow-md text-center leading-tight">{label}</span>
     </button>
 );
 
@@ -99,1199 +116,18 @@ const RevenueChart = () => {
 };
 
 // --- View: Dashboard (Command Center) ---
-const DashboardView = () => {
-    const [stats, setStats] = useState({
-        revenue: 0,
-        futureRevenue: 0,
-        leads: 0,
-        students: 0,
-        activeCourses: 0
-    });
-    const [revenueHistory, setRevenueHistory] = useState<{ date: string, value: number }[]>([]);
-    const [leadsHistory, setLeadsHistory] = useState<{ date: string, value: number }[]>([]);
-    const [mechanicsByState, setMechanicsByState] = useState<{ state: string, count: number }[]>([]);
-    const [filterPeriod, setFilterPeriod] = useState('YYYY');
 
-    useEffect(() => {
-        async function fetchData() {
-            // Date Filter Logic
-            const now = new Date();
-            let startDate = new Date(0).toISOString(); // Default All Time
-
-            if (filterPeriod === '30d') {
-                const d = new Date();
-                d.setDate(d.getDate() - 30);
-                startDate = d.toISOString();
-            } else if (filterPeriod === '90d') {
-                const d = new Date();
-                d.setDate(d.getDate() - 90);
-                startDate = d.toISOString();
-            } else if (filterPeriod === 'YYYY') {
-                startDate = new Date(now.getFullYear(), 0, 1).toISOString();
-            }
-
-            // 1. Leads
-            const { count: leadsCount } = await supabase
-                .from('SITE_Leads')
-                .select('*', { count: 'exact', head: true })
-                .gte('created_at', startDate);
-
-            // 2. Enrollments & Revenue
-            const { data: enrollments } = await supabase
-                .from('SITE_Enrollments')
-                .select('*, course:SITE_Courses(price)')
-                .gte('created_at', startDate);
-
-            let realized = 0;
-            let future = 0;
-            let studentsCount = 0;
-
-            if (enrollments) {
-                studentsCount = enrollments.length;
-                enrollments.forEach((e: any) => {
-                    const paid = e.amount_paid || 0;
-                    const price = e.course?.price || 0;
-                    realized += paid;
-                    future += (price - paid);
-                });
-            }
-
-            // 3. Active Courses (Not filtered by date usually, but could be)
-            const { count: coursesCount } = await supabase.from('SITE_Courses').select('*', { count: 'exact', head: true });
-
-            // 4. Mechanics by State (Mock or Real)
-            // For now, let's assume we have state data or fetch it.
-            const { data: mechanics } = await supabase.from('SITE_Mechanics').select('state');
-            const stateMap: Record<string, number> = {};
-            mechanics?.forEach((m: any) => {
-                const s = m.state || 'SP'; // Default to SP if missing
-                stateMap[s] = (stateMap[s] || 0) + 1;
-            });
-            const stateData = Object.entries(stateMap).map(([k, v]) => ({ state: k, count: v })).sort((a, b) => b.count - a.count).slice(0, 5);
-
-            setStats({
-                revenue: realized,
-                futureRevenue: future,
-                leads: leadsCount || 0,
-                students: studentsCount,
-                activeCourses: coursesCount || 0
-            });
-            setMechanicsByState(stateData);
-
-            // Mock Revenue History for Chart (since we don't have historical sequence easy yet)
-            // In real prod, group transactions by date.
-            setMechanicsByState(stateData);
-
-            // Mock Revenue History for Chart
-            setRevenueHistory([
-                { date: 'Jan', value: realized * 0.1 },
-                { date: 'Fev', value: realized * 0.15 },
-                { date: 'Mar', value: realized * 0.2 },
-                { date: 'Abr', value: realized * 0.3 },
-                { date: 'Mai', value: realized * 0.6 },
-                { date: 'Jun', value: realized } // Current
-            ]);
-
-            // Leads History (Mock for now, normally grouped by created_at)
-            setLeadsHistory([
-                { date: 'Jan', value: Math.floor(leadsCount * 0.1) },
-                { date: 'Fev', value: Math.floor(leadsCount * 0.15) },
-                { date: 'Mar', value: Math.floor(leadsCount * 0.2) },
-                { date: 'Abr', value: Math.floor(leadsCount * 0.25) },
-                { date: 'Mai', value: Math.floor(leadsCount * 0.4) },
-                { date: 'Jun', value: leadsCount || 0 }
-            ]);
-        }
-        fetchData();
-    }, [filterPeriod]); // Re-fetch when filter changes (logic to filter leads/revenue would go inside fetch)
-
-    // Calculate Conversion Rate
-    const conversionRate = stats.leads > 0 ? ((stats.students / stats.leads) * 100).toFixed(1) : '0.0';
-
-    // Custom SVG Area Chart
-    const AreaChart = ({ data, color = "#d4af37" }: any) => {
-        if (!data.length) return null;
-        const height = 200;
-        const width = 600;
-        const max = Math.max(...data.map((d: any) => d.value));
-        const points = data.map((d: any, i: number) => {
-            const x = (i / (data.length - 1)) * width;
-            const y = height - ((d.value / max) * height);
-            return `${x},${y}`;
-        }).join(' ');
-
-        return (
-            <div className="w-full h-full overflow-hidden relative">
-                <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="w-full h-full overflow-hidden">
-                    <defs>
-                        <linearGradient id={`${color}-gradient`} x1="0" x2="0" y1="0" y2="1">
-                            <stop offset="0%" stopColor={color} stopOpacity="0.2" />
-                            <stop offset="100%" stopColor={color} stopOpacity="0" />
-                        </linearGradient>
-                    </defs>
-                    <path d={`M0,${height} ${points} ${width},${height}`} fill={`url(#${color}-gradient)`} />
-                    <polyline fill="none" stroke={color} strokeWidth="3" points={points} />
-                    {data.map((d: any, i: number) => (
-                        <circle key={i} cx={(i / (data.length - 1)) * width} cy={height - ((d.value / max) * height)} r="4" fill="white" stroke={color} strokeWidth="2" />
-                    ))}
-                </svg>
-                <div className="flex justify-between mt-2 text-xs text-gray-400 font-bold uppercase">
-                    {data.map((d: any) => <span key={d.date}>{d.date}</span>)}
-                </div>
-            </div>
-        );
-    };
-
-    return (
-        <div className="space-y-6 animate-fade-in text-gray-900 pb-10">
-            {/* Filter Header */}
-            <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-gray-800">Visão Geral</h2>
-                <select
-                    value={filterPeriod}
-                    onChange={(e) => setFilterPeriod(e.target.value)}
-                    className="border border-gray-300 rounded-lg p-2 text-sm font-bold text-gray-600 bg-white"
-                >
-                    <option value="YYYY">Ano Atual</option>
-                    <option value="30d">Últimos 30 dias</option>
-                    <option value="90d">Últimos 3 Meses</option>
-                </select>
-            </div>
-            {/* KPI Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {[
-                    { label: 'Receita Realizada', value: `R$ ${stats.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, sub: 'Total recebido', icon: DollarSign, color: 'text-green-600 bg-green-50' },
-                    { label: 'Receita Futura', value: `R$ ${stats.futureRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, sub: 'A receber de alunos', icon: TrendingUp, color: 'text-blue-600 bg-blue-50' },
-                    { label: 'Total de Leads', value: stats.leads, sub: 'Potenciais clientes', icon: Users, color: 'text-wtech-gold bg-yellow-50' },
-                    { label: 'Alunos Matriculados', value: stats.students, sub: `${stats.activeCourses} Cursos ativos`, icon: ShoppingBag, color: 'text-purple-600 bg-purple-50' },
-                ].map((kpi, idx) => (
-                    <div key={idx} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-start justify-between hover:shadow-md transition-all">
-                        <div>
-                            <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">{kpi.label}</p>
-                            <h3 className="text-2xl font-black text-gray-900">{kpi.value}</h3>
-                            <span className="text-xs text-gray-400 mt-1 block">{kpi.sub}</span>
-                        </div>
-                        <div className={`p-3 rounded-xl ${kpi.color}`}>
-                            <kpi.icon size={24} />
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Charts Section */}
-            {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Main Revenue Chart (Small) */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <div className="flex justify-between items-start mb-6">
-                        <div>
-                            <h3 className="text-lg font-bold text-gray-900">Receita Recente</h3>
-                            <p className="text-gray-500 text-xs">Tendência de faturamento.</p>
-                        </div>
-                        <div className="flex items-center gap-2 text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full text-xs">
-                            <TrendingUp size={14} /> +32%
-                        </div>
-                    </div>
-                    <div className="h-48 flex items-end">
-                        <AreaChart data={revenueHistory} color="#d4af37" />
-                    </div>
-                </div>
-
-                {/* Leads & Conversion Chart */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <div className="flex justify-between items-start mb-6">
-                        <div>
-                            <h3 className="text-lg font-bold text-gray-900">Leads e Conversão</h3>
-                            <p className="text-gray-500 text-xs">Desempenho de captação de alunos.</p>
-                        </div>
-                        <div className="flex items-center gap-2 text-purple-600 font-bold bg-purple-50 px-3 py-1 rounded-full text-xs">
-                            Taxa: {conversionRate}%
-                        </div>
-                    </div>
-                    <div className="h-48 flex items-end">
-                        <AreaChart data={leadsHistory} color="#9333ea" />
-                    </div>
-                </div>
-            </div>
-
-            {/* Network Growth / Large Chart */}
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                        <h2 className="text-2xl font-black text-gray-900 tracking-tight">Rede Credenciada</h2>
-                        <p className="text-sm text-gray-500">Gerencie oficinas e parceiros credenciados.</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2 w-full md:w-auto">
-                        <span className="flex items-center gap-1 text-xs font-bold text-gray-500"><div className="w-2 h-2 rounded-full bg-wtech-gold"></div>Receita Global</span>
-                    </div>
-                </div>
-                <div className="h-64 flex items-end">
-                    {/* Using revenue history here again as placeholder for mechanics growth or total revenue */}
-                    <AreaChart data={revenueHistory} color="#d4af37" />
-                </div>
-            </div>
-
-            {/* Mechanics Distribution */}
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-                <h2 className="text-lg font-bold text-gray-900 mb-2">Credenciados por Região</h2>
-                <p className="text-sm text-gray-500 mb-6">Top 5 Estados com mais oficinas</p>
-
-                <div className="space-y-4">
-                    {mechanicsByState.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-3">
-                            <span className="w-8 text-xs font-bold text-gray-400">#{idx + 1}</span>
-                            <div className="flex-grow">
-                                <div className="flex justify-between text-sm font-bold mb-1">
-                                    <span>{item.state}</span>
-                                    <span className="text-gray-500">{item.count}</span>
-                                </div>
-                                <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-wtech-black" style={{ width: `${(item.count / (mechanicsByState[0]?.count || 1)) * 100}%` }}></div>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                    {mechanicsByState.length === 0 && <p className="text-sm text-gray-400 italic">Sem dados de localização.</p>}
-                </div>
-
-                <button className="w-full mt-8 py-3 bg-gray-50 text-xs font-bold uppercase tracking-wider text-gray-500 hover:bg-gray-100 rounded-lg">Ver Relatório Completo</button>
-            </div>
-        </div>
-    );
-}
 
 // --- View: CRM (Kanban) ---
 // --- View: CRM (Kanban Enhanced) ---
 
 // Helper for Drag & Drop
-const DragContext = React.createContext<{
-    draggedId: string | null;
-    setDraggedId: (id: string | null) => void;
-}>({ draggedId: null, setDraggedId: () => { } });
 
-const KanbanColumn = ({ title, status, leads, onMove, onDropLead, onLeadClick }: any) => {
-    const { draggedId } = React.useContext(DragContext);
-
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        if (draggedId) onDropLead(draggedId, status);
-    };
-
-    const handleDragOver = (e: React.DragEvent) => e.preventDefault();
-
-    return (
-        <div
-            className={`flex-shrink-0 w-80 flex flex-col h-full rounded-2xl transition-colors ${draggedId ? 'bg-gray-100/50 border-2 border-dashed border-gray-300' : 'bg-gray-100 border border-gray-200'}`}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-        >
-            {/* Header */}
-            <div className={`p-4 rounded-t-2xl border-b border-gray-200 flex justify-between items-center ${status === 'New' ? 'bg-wtech-black text-white' : 'bg-white text-gray-800'}`}>
-                <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${status === 'Converted' ? 'bg-green-500' : status === 'New' ? 'bg-wtech-gold' : 'bg-gray-400'}`}></div>
-                    <h3 className="font-bold text-sm uppercase tracking-wider">{title}</h3>
-                </div>
-                <span className="bg-white/20 text-xs px-2 py-1 rounded-full font-bold min-w-[24px] text-center">
-                    {leads.length}
-                </span>
-            </div>
-
-            {/* Cards Container */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
-                {leads.map((lead: any) => (
-                    <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} />
-                ))}
-                {leads.length === 0 && (
-                    <div className="text-center py-8 text-gray-400 text-sm italic">
-                        Arraste leads para cá
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-const LeadCard: React.FC<{ lead: any, onClick: () => void }> = ({ lead, onClick }) => {
-    const { setDraggedId } = React.useContext(DragContext);
-    const [isDragging, setIsDragging] = React.useState(false);
-
-    return (
-        <div
-            draggable
-            onDragStart={() => { setDraggedId(lead.id); setIsDragging(true); }}
-            onDragEnd={() => { setDraggedId(null); setIsDragging(false); }}
-            onClick={onClick}
-            className={`bg-white p-4 rounded-xl shadow-sm border border-gray-100 cursor-pointer active:cursor-grabbing hover:shadow-md transition-all group relative ${isDragging ? 'opacity-50 scale-95' : ''}`}
-        >
-            <div className="flex justify-between items-start mb-2">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{new Date(lead.createdAt).toLocaleDateString()}</span>
-                {lead.contextId && (
-                    <span className="bg-blue-50 text-blue-700 text-[10px] px-1.5 py-0.5 rounded font-bold max-w-[80px] truncate" title={lead.contextId}>
-                        {lead.contextId.replace('LP EUROPA:', 'Europa').replace('landing_page_', 'LP ')}
-                    </span>
-                )}
-            </div>
-
-            {/* Tags Display */}
-            {lead.tags && lead.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-2">
-                    {lead.tags.map((tag: string, i: number) => (
-                        <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-[9px] font-bold uppercase rounded border border-gray-200">
-                            {tag}
-                        </span>
-                    ))}
-                </div>
-            )}
-
-            <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-800 to-black flex items-center justify-center text-white font-bold text-lg shadow-sm">
-                    {lead.name.charAt(0)}
-                </div>
-                <div className="leading-tight">
-                    <h4 className="font-bold text-gray-900 group-hover:text-wtech-gold transition-colors">{lead.name}</h4>
-                    <p className="text-xs text-gray-500 max-w-[150px] truncate">{lead.email}</p>
-                </div>
-            </div>
-
-            <div className="flex items-center justify-between mt-3 text-xs text-gray-500 border-t border-gray-50 pt-3">
-                <div className="flex items-center gap-1">
-                    {lead.assignedTo ? <span className="flex items-center gap-1 bg-yellow-50 text-yellow-800 px-2 py-0.5 rounded-full"><Users size={10} /> Atribuído</span> : <span className="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded-full"><Users size={10} /> Sem Dono</span>}
-                </div>
-                <button className="text-gray-400 hover:text-black transition-colors"><MoreVertical size={14} /></button>
-            </div>
-        </div>
-    );
-};
-
-const CRMView = () => {
-    const [leads, setLeads] = useState<Lead[]>([]);
-    const [draggedId, setDraggedId] = useState<string | null>(null);
-    
-    // CRM Filter State
-    const [filterPeriod, setFilterPeriod] = useState(30); // Days
-    const [filterType, setFilterType] = useState<'Period' | 'Month' | 'Custom'>('Period');
-    const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
-    const [customRange, setCustomRange] = useState({ start: '', end: '' });
-
-    const [distMode, setDistMode] = useState<'Manual' | 'Random'>('Manual');
-    const [showSettings, setShowSettings] = useState(false);
-    const [editingLead, setEditingLead] = useState<any | null>(null);
-    const [editForm, setEditForm] = useState({ assignedTo: '', internalNotes: '', tags: [] as string[] });
-    const [tagInput, setTagInput] = useState('');
-    const { user } = useAuth();
-
-    const handleLeadClick = (lead: any) => {
-        setEditingLead(lead);
-        setEditForm({
-            assignedTo: lead.assignedTo || '',
-            internalNotes: lead.internalNotes || '',
-            tags: lead.tags || []
-        });
-    };
-
-    // Chart Data
-    const conversionRate = useMemo(() => {
-        if (leads.length === 0) return 0;
-        const converted = leads.filter(l => l.status === 'Converted').length;
-        return Math.round((converted / leads.length) * 100);
-    }, [leads]);
-
-    useEffect(() => {
-        fetchData();
-    }, [user]); // Re-fetch if user changes to apply privacy
-
-    const fetchData = async () => {
-        // Fetch Leads with Privacy Filter
-        let query = supabase.from('SITE_Leads').select('*').order('created_at', { ascending: false });
-
-        // Privacy Logic: If not Admin (Level > 8 or Super Admin), only see assigned leads
-        // Checking explicitly for Level 10 as requested
-        const hasFullAccess =
-            (typeof user?.role !== 'string' && user?.role?.level >= 10) ||
-            (typeof user?.role !== 'string' && user?.role?.name === 'Super Admin') ||
-            (typeof user?.role !== 'string' && user?.role?.permissions?.admin_access);
-
-        if (!hasFullAccess && user?.id) {
-            query = query.eq('assigned_to', user.id);
-        }
-
-        const { data } = await query;
-
-        if (data) {
-            const mapped = data.map((l: any) => ({
-                ...l,
-                contextId: l.context_id,
-                createdAt: l.created_at,
-                assignedTo: l.assigned_to,
-                internalNotes: l.internal_notes
-            }));
-            setLeads(mapped);
-        }
-    }
-
-    const saveLeadUpdates = async () => {
-        if (!editingLead) return;
-
-        const { error } = await supabase.from('SITE_Leads').update({
-            assigned_to: editForm.assignedTo,
-            internal_notes: editForm.internalNotes,
-            tags: editForm.tags
-        }).eq('id', editingLead.id);
-
-        if (!error) {
-            setLeads(prev => prev.map(l => l.id === editingLead.id ? { ...l, assignedTo: editForm.assignedTo, internalNotes: editForm.internalNotes, tags: editForm.tags } : l));
-            setEditingLead(null);
-            setTagInput('');
-        } else {
-            alert('Erro ao salvar alterações.');
-        }
-    };
-
-    // Fetch Settings & Leads
-    useEffect(() => {
-        const fetchData = async () => {
-            // Fetch Settings
-            const { data: settings } = await supabase.from('SITE_SystemSettings').select('value').eq('key', 'crm_distribution_mode').single();
-            if (settings) setDistMode(settings.value);
-
-            // Fetch Leads with Filters (Client-side filter for simplicity for now)
-            const { data } = await supabase.from('SITE_Leads').select('*').order('created_at', { ascending: false });
-            if (data) {
-                const mapped = data.map((l: any) => ({
-                    ...l,
-                    contextId: l.context_id,
-                    createdAt: l.created_at,
-                    assignedTo: l.assigned_to,
-                    internalNotes: l.internal_notes
-                }));
-                setLeads(mapped);
-            }
-        }
-        fetchData();
-    }, [filterPeriod]);
-
-    // Update Distribution Mode
-    const toggleDistMode = async (mode: 'Manual' | 'Random') => {
-        setDistMode(mode);
-        await supabase.from('SITE_SystemSettings').upsert({ key: 'crm_distribution_mode', value: mode }, { onConflict: 'key' });
-    };
-
-    // Drag & Drop Handler
-    const onDropLead = async (leadId: string, newStatus: string) => {
-        // Optimistic Update
-        setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus as any } : l));
-
-        // DB Update
-        const { error } = await supabase.from('SITE_Leads').update({ status: newStatus }).eq('id', leadId);
-        if (error) alert('Falha ao mover lead');
-    };
-
-    // Filter Logic
-    const filteredLeads = leads.filter(l => {
-        const d = new Date(l.createdAt);
-        
-        if (filterType === 'Period') {
-            const now = new Date();
-            const diffTime = Math.abs(now.getTime() - d.getTime());
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            return diffDays <= filterPeriod;
-        } else if (filterType === 'Month') {
-            return l.createdAt.startsWith(selectedMonth);
-        } else if (filterType === 'Custom') {
-            if (customRange.start && d < new Date(customRange.start)) return false;
-            // Add 1 day to end date to handle "until end of day" implicitly or just compare strict
-             if (customRange.end && d > new Date(new Date(customRange.end).setHours(23,59,59,999))) return false;
-            return true;
-        }
-        return true;
-    });
-
-    return (
-        <DragContext.Provider value={{ draggedId, setDraggedId }}>
-            <div className="h-[calc(100vh-180px)] flex flex-col">
-                {/* CRM Toolbar */}
-                <div className="flex justify-between items-center mb-6">
-                    <div className="flex items-center gap-4">
-                        <div className="flex bg-gray-100 p-1 rounded-lg">
-                            {[7, 30, 9999].map(days => (
-                                <button
-                                    key={days}
-                                    onClick={() => { setFilterPeriod(days); setFilterType('Period'); }}
-                                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${filterType === 'Period' && filterPeriod === days ? 'bg-white shadow text-black' : 'text-gray-500 hover:text-black'}`}
-                                >
-                                    {days === 9999 ? 'Todos' : `${days} dias`}
-                                </button>
-                            ))}
-                        </div>
-                        
-                        {/* Month & Custom Selectors */}
-                        <div className="flex items-center gap-2">
-                            <input 
-                                type="month" 
-                                value={selectedMonth}
-                                onChange={(e) => { setSelectedMonth(e.target.value); setFilterType('Month'); }}
-                                className={`border rounded-lg px-2 py-1 text-xs font-bold ${filterType === 'Month' ? 'border-wtech-gold bg-white' : 'border-gray-200 bg-gray-50'}`}
-                            />
-                            
-                            <div className="flex items-center bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
-                                <input 
-                                    type="date" 
-                                    className={`px-2 py-1 text-xs bg-transparent outline-none ${filterType === 'Custom' ? 'font-bold text-black' : 'text-gray-500'}`}
-                                    value={customRange.start}
-                                    onChange={(e) => { setCustomRange(p => ({...p, start: e.target.value})); setFilterType('Custom'); }}
-                                />
-                                <span className="text-gray-300 text-[10px] uppercase font-bold px-1">Até</span>
-                                <input 
-                                    type="date" 
-                                    className={`px-2 py-1 text-xs bg-transparent outline-none ${filterType === 'Custom' ? 'font-bold text-black' : 'text-gray-500'}`}
-                                    value={customRange.end}
-                                    onChange={(e) => { setCustomRange(p => ({...p, end: e.target.value})); setFilterType('Custom'); }}
-                                />
-                            </div>
-                        </div>
-                            </div>
-                        </div>
-
-                        <div className="relative group">
-                            <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-xs font-bold uppercase hover:bg-gray-50">
-                                <Settings size={14} /> Distribuição: <span className={distMode === 'Random' ? 'text-green-600' : 'text-orange-600'}>{distMode === 'Random' ? 'Aleatória' : 'Manual'}</span>
-                            </button>
-                            {/* Dropdown for Settings */}
-                            <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-100 p-4 hidden group-hover:block z-50">
-                                <h5 className="font-bold text-sm mb-2">Modo de Distribuição</h5>
-                                <p className="text-xs text-gray-400 mb-3 leading-tight">Como os novos leads devem ser atribuídos aos colaboradores?</p>
-                                <div className="flex flex-col gap-2">
-                                    <button onClick={() => toggleDistMode('Manual')} className={`flex items-center gap-3 p-3 rounded-lg border text-left ${distMode === 'Manual' ? 'border-wtech-gold bg-yellow-50' : 'border-gray-100 hover:bg-gray-50'}`}>
-                                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${distMode === 'Manual' ? 'border-wtech-gold' : 'border-gray-300'}`}>
-                                            {distMode === 'Manual' && <div className="w-2 h-2 rounded-full bg-wtech-gold"></div>}
-                                        </div>
-                                        <div>
-                                            <span className="text-xs font-bold block">Manual</span>
-                                            <span className="text-[10px] text-gray-500">Gestor define dono</span>
-                                        </div>
-                                    </button>
-                                    <button onClick={() => toggleDistMode('Random')} className={`flex items-center gap-3 p-3 rounded-lg border text-left ${distMode === 'Random' ? 'border-wtech-gold bg-yellow-50' : 'border-gray-100 hover:bg-gray-50'}`}>
-                                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${distMode === 'Random' ? 'border-wtech-gold' : 'border-gray-300'}`}>
-                                            {distMode === 'Random' && <div className="w-2 h-2 rounded-full bg-wtech-gold"></div>}
-                                        </div>
-                                        <div className="flex-1">
-                                            <span className="text-xs font-bold block">Aleatória (Roleta)</span>
-                                            <span className="text-[10px] text-gray-500">Distribui entre time</span>
-                                        </div>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        <button className="px-4 py-2 bg-wtech-black text-white rounded-lg font-bold text-xs uppercase flex items-center gap-2 hover:bg-gray-800">
-                            <Plus size={14} /> Novo Lead
-                        </button>
-                    </div>
-                </div>
-
-                {/* Board */}
-                <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar h-[calc(100vh-280px)]">
-                    <KanbanColumn
-                        title="Novos (Entrada)"
-                        status="New"
-                        leads={filteredLeads.filter(l => l.status === 'New')}
-                        onMove={onDropLead}
-                        onDropLead={onDropLead}
-                        onLeadClick={handleLeadClick}
-                    />
-                    <KanbanColumn
-                        title="Em Atendimento"
-                        status="Contacted"
-                        leads={filteredLeads.filter(l => l.status === 'Contacted')}
-                        onMove={onDropLead}
-                        onDropLead={onDropLead}
-                        onLeadClick={handleLeadClick}
-                    />
-                    <KanbanColumn
-                        title="Negociação"
-                        status="Qualified"
-                        leads={filteredLeads.filter(l => l.status === 'Qualified')}
-                        onMove={onDropLead}
-                        onDropLead={onDropLead}
-                        onLeadClick={handleLeadClick}
-                    />
-                    <KanbanColumn
-                        title="Fechado / Ganho"
-                        status="Converted"
-                        leads={filteredLeads.filter(l => l.status === 'Converted')}
-                        onMove={onDropLead}
-                        onDropLead={onDropLead}
-                        onLeadClick={handleLeadClick}
-                    />
-                    <KanbanColumn
-                        title="Esfriou / Perdido"
-                        status="Cold"
-                        leads={leads.filter(l => l.status === 'Cold')}
-                        onMove={onDropLead}
-                        onDropLead={onDropLead}
-                        onLeadClick={handleLeadClick}
-                    />
-                </div>
-            </div>
-
-            {/* Conversion Chart Overlay (Mini) */}
-            <div className="fixed bottom-8 right-8 bg-white p-4 rounded-xl shadow-2xl border border-gray-100 z-40 animate-in slide-in-from-right">
-                <div className="flex items-center gap-4">
-                    <div className="relative w-16 h-16">
-                        <svg className="w-full h-full transform -rotate-90">
-                            <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-gray-100" />
-                            <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={175.9} strokeDashoffset={175.9 - (175.9 * conversionRate) / 100} className="text-green-500" />
-                        </svg>
-                        <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xs font-bold">{conversionRate}%</span>
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase">Taxa de Conversão</p>
-                        <p className="text-sm font-bold text-gray-900">{leads.filter(l => l.status === 'Converted').length} Vendas / {leads.length} Leads</p>
-                    </div>
-                </div>
-            </div>     {/* Lead Edit Modal */}
-            <AnimatePresence>
-                {editingLead && (
-                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md"
-                        >
-                            <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
-                                <div>
-                                    <h3 className="text-xl font-bold text-gray-900">{editingLead.name}</h3>
-                                    <p className="text-sm text-gray-500">{editingLead.email}</p>
-                                </div>
-                                <button onClick={() => setEditingLead(null)} className="p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button>
-                            </div>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Colaborador Responsável</label>
-                                    <div className="relative">
-                                        <Users size={16} className="absolute left-3 top-3 text-gray-400" />
-                                        <input
-                                            className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2.5 text-sm font-medium focus:border-wtech-gold focus:ring-1 focus:ring-wtech-gold outline-none"
-                                            placeholder="Nome do colaborador..."
-                                            value={editForm.assignedTo}
-                                            onChange={e => setEditForm({ ...editForm, assignedTo: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Notas Internas</label>
-                                    <textarea
-                                        className="w-full border border-gray-200 rounded-lg p-3 text-sm focus:border-wtech-gold focus:ring-1 focus:ring-wtech-gold outline-none min-h-[100px]"
-                                        placeholder="Observações sobre o lead..."
-                                        value={editForm.internalNotes}
-                                        onChange={e => setEditForm({ ...editForm, internalNotes: e.target.value })}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Tags / Identificação</label>
-                                    <div className="flex flex-wrap gap-2 mb-2">
-                                        {editForm.tags?.map((tag, idx) => (
-                                            <span key={idx} className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full flex items-center gap-1 border border-gray-200">
-                                                {tag}
-                                                <button onClick={() => setEditForm(prev => ({ ...prev, tags: prev.tags.filter((_, i) => i !== idx) }))} className="hover:text-red-500"><X size={12} /></button>
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <input
-                                            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-wtech-gold"
-                                            placeholder="Adicionar tag... (Enter)"
-                                            value={tagInput}
-                                            onChange={e => setTagInput(e.target.value)}
-                                            onKeyDown={e => {
-                                                if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    if (tagInput.trim()) {
-                                                        setEditForm(prev => ({ ...prev, tags: [...(prev.tags || []), tagInput.trim()] }));
-                                                        setTagInput('');
-                                                    }
-                                                }
-                                            }}
-                                        />
-                                        <button 
-                                            onClick={() => {
-                                                if (tagInput.trim()) {
-                                                    setEditForm(prev => ({ ...prev, tags: [...(prev.tags || []), tagInput.trim()] }));
-                                                    setTagInput('');
-                                                }
-                                            }}
-                                            className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                                        >
-                                            <Plus size={16} />
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="pt-4 flex gap-3">
-                                    <button
-                                        onClick={saveLeadUpdates}
-                                        className="flex-1 bg-wtech-black text-white font-bold py-3 rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
-                                    >
-                                        <Save size={16} /> Salvar Alterações
-                                    </button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
-
-        </DragContext.Provider >
-    );
-};
 
 
 
 
 // --- View: Blog Manager (List & Edit + AI) ---
-const BlogManagerView = () => {
-    const [viewMode, setViewMode] = useState<'list' | 'edit' | 'ai_batch'>('list');
-    const [posts, setPosts] = useState<BlogPost[]>([]);
-    const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
-    const [comments, setComments] = useState<PostComment[]>([]);
-    const [newComment, setNewComment] = useState('');
-    const { user } = useAuth();
-    const [formData, setFormData] = useState<Partial<BlogPost>>({});
-
-    // AI State
-    const [showAI, setShowAI] = useState(false);
-    const [aiTopic, setAiTopic] = useState('');
-    const [aiGenerating, setAiGenerating] = useState(false);
-
-    // AI Batch State
-    const [batchTopic, setBatchTopic] = useState('');
-    const [batchKeywords, setBatchKeywords] = useState('');
-    const [batchPostsPerDay, setBatchPostsPerDay] = useState<number>(3);
-    const [batchGenerating, setBatchGenerating] = useState(false);
-    const [batchSuccess, setBatchSuccess] = useState(false); // Can be boolean or a summary string
-    const [generatedCount, setGeneratedCount] = useState(0);
-
-    useEffect(() => {
-        fetchPosts();
-    }, []);
-
-    const fetchPosts = async () => {
-        const { data } = await supabase.from('SITE_BlogPosts').select('*').order('date', { ascending: false });
-        if (data) setPosts(data.map((p: any) => ({
-            ...p,
-            seoScore: p.seo_score,
-            seoDescription: p.seo_description,
-            seoTitle: p.seo_title
-        })));
-    };
-
-    const handleDeletePost = async (id: string) => {
-        if (!confirm("Tem certeza que deseja excluir este post permanentemente?")) return;
-
-        const { error } = await supabase.from('SITE_BlogPosts').delete().eq('id', id);
-
-        if (error) {
-            alert("Erro ao excluir: " + error.message);
-        } else {
-            setPosts(prev => prev.filter(p => p.id !== id));
-        }
-    };
-
-    const handleEdit = async (post?: BlogPost) => {
-        if (post) {
-            setSelectedPost(post);
-            setFormData(post);
-            const { data } = await supabase.from('SITE_PostComments').select('*').eq('post_id', post.id).order('created_at', { ascending: true });
-            if (data) setComments(data.map((c: any) => ({ ...c, postId: c.post_id, userName: c.user_name, createdAt: c.created_at })));
-        } else {
-            setSelectedPost(null);
-            setFormData({ status: 'Draft', content: '', title: '' });
-            setComments([]);
-        }
-        setViewMode('edit');
-    };
-
-    const handleSave = async () => {
-        const score = calculateSeoScore(formData);
-
-        const payload = {
-            title: formData.title,
-            content: formData.content,
-            slug: formData.slug,
-            excerpt: formData.excerpt,
-            seo_title: formData.seoTitle,
-            seo_description: formData.seoDescription,
-            status: formData.status,
-            seo_score: score,
-            image: formData.image,
-            author: formData.author || user?.name || 'Admin',
-            category: formData.category || 'Blog',
-            date: formData.date || new Date().toISOString()
-        };
-
-        if (selectedPost && selectedPost.id) {
-            await supabase.from('SITE_BlogPosts').update(payload).eq('id', selectedPost.id);
-        } else {
-            await supabase.from('SITE_BlogPosts').insert([payload]);
-        }
-
-        alert('Post salvo com sucesso!');
-        setViewMode('list');
-        fetchPosts();
-    };
-
-    const handleGenerateAI = async () => {
-        if (!aiTopic) return alert("Digite um tópico.");
-        setAiGenerating(true);
-        try {
-            const aiPost = await generateBlogPost(aiTopic, []);
-            const generatedSlug = aiPost.slug || aiPost.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-
-            setFormData({
-                ...formData,
-                title: aiPost.title,
-                slug: generatedSlug,
-                excerpt: aiPost.excerpt,
-                content: aiPost.content,
-                seoTitle: aiPost.title,
-                seoDescription: aiPost.seo_description,
-                image: `https://image.pollinations.ai/prompt/${encodeURIComponent(aiTopic)}?width=800&height=400&nologo=true`
-            });
-            setShowAI(false);
-        } catch (error: any) {
-            alert("Erro IA: " + error.message);
-        } finally {
-            setAiGenerating(false);
-        }
-    };
-
-    const handleComment = async () => {
-        if (!newComment || !selectedPost || !user) return;
-        await supabase.from('SITE_PostComments').insert({
-            post_id: selectedPost.id,
-            user_name: user.name,
-            content: newComment
-        });
-        setNewComment('');
-        // Refresh comments logic here if needed
-    };
-
-    const calculateSeoScore = (data: Partial<BlogPost>) => {
-        let score = 50;
-        if (data.title && data.title.length > 30 && data.title.length < 60) score += 10;
-        if (data.seoDescription && data.seoDescription.length > 120 && data.seoDescription.length < 160) score += 10;
-        if (data.content && data.content.length > 500) score += 20;
-        if (data.slug && !data.slug.includes(' ')) score += 10;
-        return Math.min(100, score);
-    };
-
-    const handleGenerateBatch = async () => {
-        if (!batchTopic && !batchKeywords) return alert("Preencha os tópicos e palavras-chave");
-
-        // Split topics (priority) or generate from keywords
-        let topicsList = batchTopic ? batchTopic.split(',').map(t => t.trim()).filter(t => t) : [];
-        if (topicsList.length === 0 && batchKeywords) {
-            // If only keywords are provided, use them as topics
-            topicsList = batchKeywords.split(',').map(k => k.trim()).filter(k => k);
-        }
-
-        if (topicsList.length === 0) return alert("Nenhum tópico identificado.");
-
-        setBatchGenerating(true);
-        setBatchSuccess(false);
-        setGeneratedCount(0);
-
-        try {
-            const keywordList = batchKeywords.split(',').map(k => k.trim());
-            const postsPerDay = batchPostsPerDay || 3;
-
-            let completed = 0;
-
-            for (let i = 0; i < topicsList.length; i++) {
-                const topic = topicsList[i];
-
-                // Schedule Date Logic
-                const daysToAdd = Math.floor(i / postsPerDay);
-                const scheduleDate = new Date();
-                scheduleDate.setDate(scheduleDate.getDate() + daysToAdd);
-                // Set to a reasonable time (e.g., 09:00 AM) or keep current time
-
-                const aiPost = await generateBlogPost(topic, keywordList);
-                let coverImage = aiPost.image_prompt
-                    ? `https://image.pollinations.ai/prompt/${encodeURIComponent(aiPost.image_prompt)}?width=800&height=400&nologo=true`
-                    : `https://image.pollinations.ai/prompt/${encodeURIComponent(topic)}?width=800&height=400&nologo=true`;
-
-                const generatedSlug = aiPost.slug || aiPost.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Math.random().toString(36).substr(2, 5);
-
-                await supabase.from('SITE_BlogPosts').insert([{
-                    title: aiPost.title,
-                    slug: generatedSlug,
-                    excerpt: aiPost.excerpt,
-                    content: aiPost.content,
-                    seo_description: aiPost.seo_description,
-                    seo_title: aiPost.title,
-                    keywords: aiPost.tags || keywordList,
-                    status: 'Published', // Auto-publish with future date? Or 'Draft'. User asked to "create content", assuming intent to publish.
-                    author: 'W-TECH AI',
-                    category: 'Blog',
-                    image: coverImage,
-                    seo_score: Math.floor(Math.random() * (95 - 75) + 75),
-                    views: 0,
-                    clicks: 0,
-                    date: scheduleDate.toISOString() // Future date
-                }]);
-
-                completed++;
-                setGeneratedCount(completed);
-            }
-            setBatchSuccess(true);
-            setBatchTopic('');
-            // Don't switch view immediately
-        } catch (error: any) {
-            alert("Erro Parcial: " + error.message);
-        } finally {
-            setBatchGenerating(false);
-        }
-    };
-
-    const currentScore = calculateSeoScore(formData);
-
-    if (viewMode === 'edit') {
-        return (
-            <div className="flex h-full gap-6 text-gray-900">
-                <div className="flex-grow bg-white rounded-lg shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-                    <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                        <div className="flex items-center gap-4">
-                            <button onClick={() => setViewMode('list')} className="text-gray-500 hover:text-black"><ArrowRight className="rotate-180" /></button>
-                            <h2 className="font-bold text-lg text-gray-900">Editor de Postagem</h2>
-                            <button onClick={() => setShowAI(!showAI)} className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-3 py-1 rounded text-xs font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all">
-                                <Sparkles size={12} /> {showAI ? 'Fechar IA' : 'Gerar com IA'}
-                            </button>
-                        </div>
-                        <div className="flex gap-2">
-                            <select
-                                className="border border-gray-300 p-2 rounded text-sm text-gray-900 bg-white"
-                                value={formData.status}
-                                onChange={e => setFormData({ ...formData, status: e.target.value as any })}
-                            >
-                                <option value="Draft">Rascunho</option>
-                                <option value="Published">Publicado</option>
-                            </select>
-                            <button onClick={handleSave} className="bg-wtech-gold text-black px-4 py-2 rounded font-bold text-sm flex items-center gap-2">
-                                <Save size={16} /> Salvar
-                            </button>
-                        </div>
-                    </div>
-
-                    {showAI && (
-                        <div className="bg-purple-50 p-4 border-b border-purple-100 animate-in slide-in-from-top-2">
-                            <div className="flex gap-2">
-                                <input
-                                    className="flex-grow border border-purple-200 rounded p-2 text-sm"
-                                    placeholder="Sobre o que você quer escrever?"
-                                    value={aiTopic}
-                                    onChange={e => setAiTopic(e.target.value)}
-                                />
-                                <button
-                                    onClick={handleGenerateAI}
-                                    disabled={aiGenerating}
-                                    className="bg-purple-600 text-white px-4 py-2 rounded font-bold text-sm hover:bg-purple-700 disabled:opacity-50"
-                                >
-                                    {aiGenerating ? <Loader2 className="animate-spin" /> : 'Gerar'}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Título</label>
-                            <input className="w-full text-2xl font-bold border-b border-gray-200 text-gray-900 bg-transparent py-2" value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })} />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Slug</label>
-                                <input className="w-full border border-gray-300 p-2 rounded text-sm text-gray-900" value={formData.slug || ''} onChange={e => setFormData({ ...formData, slug: e.target.value })} />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
-                                <input type="datetime-local" className="w-full border border-gray-300 p-2 rounded text-sm text-gray-900"
-                                    value={formData.date ? new Date(formData.date).toISOString().slice(0, 16) : ''}
-                                    onChange={e => setFormData({ ...formData, date: new Date(e.target.value).toISOString() })} />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Resumo</label>
-                            <textarea rows={2} className="w-full border border-gray-300 p-2 rounded text-sm text-gray-900" value={formData.excerpt || ''} onChange={e => setFormData({ ...formData, excerpt: e.target.value })} />
-                        </div>
-
-                        <div className="flex-grow">
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Conteúdo (HTML)</label>
-                            <textarea
-                                className="w-full h-96 border border-gray-300 p-4 rounded font-mono text-sm"
-                                value={formData.content || ''}
-                                onChange={e => setFormData({ ...formData, content: e.target.value })}
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                <div className="w-72 flex-shrink-0 flex flex-col gap-6">
-                    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 text-center">
-                        <h3 className="font-bold text-gray-800 mb-2">SEO Score</h3>
-                        <span className="text-4xl font-bold text-wtech-gold">{currentScore}</span>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    if (viewMode === 'ai_batch') {
-        return (
-            <div className="flex h-full gap-6 text-gray-900 justify-center items-start pt-10">
-                <div className="max-w-4xl w-full bg-white p-8 rounded-xl shadow-sm border border-gray-100 relative">
-                    <button onClick={() => setViewMode('list')} className="absolute top-4 left-4 p-2 hover:bg-gray-100 rounded-full text-gray-500">
-                        <ArrowRight className="rotate-180" size={24} />
-                    </button>
-
-                    <div className="flex items-center gap-3 mb-6 ml-10">
-                        <div className="bg-wtech-black p-2 rounded text-wtech-gold"><Sparkles size={24} /></div>
-                        <div>
-                            <h2 className="text-xl font-bold text-gray-900">Agendador de Conteúdo IA</h2>
-                            <p className="text-xs text-gray-500">Crie um cronograma de postagens otimizadas automaticamente.</p>
-                        </div>
-                    </div>
-
-                    {batchSuccess && (
-                        <div className="mb-6 bg-green-50 border border-green-200 text-green-800 p-4 rounded-lg flex justify-between items-center animate-in fade-in">
-                            <div>
-                                <strong>Sucesso!</strong> {generatedCount} artigos agendados.
-                            </div>
-                            <button onClick={() => { setViewMode('list'); fetchPosts(); }} className="text-sm font-bold underline hover:text-green-900">
-                                Ver Calendário
-                            </button>
-                        </div>
-                    )}
-
-                    <div className="grid md:grid-cols-2 gap-6">
-                        <div className="md:col-span-2">
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Lista de Tópicos (Um por linha ou vírgula)</label>
-                            <textarea
-                                rows={6}
-                                className="w-full border border-gray-300 p-3 rounded text-gray-900 focus:border-wtech-gold focus:ring-1 focus:ring-wtech-gold outline-none font-mono text-sm"
-                                value={batchTopic}
-                                onChange={e => setBatchTopic(e.target.value)}
-                                placeholder={"Manutenção de Freios\nTroca de Óleo\nSuspensão Esportiva\n..."}
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Publicações por Dia</label>
-                            <input
-                                type="number"
-                                min="1" max="10"
-                                className="w-full border border-gray-300 p-3 rounded text-gray-900 font-bold"
-                                value={batchPostsPerDay}
-                                onChange={e => setBatchPostsPerDay(parseInt(e.target.value))}
-                            />
-                            <p className="text-[10px] text-gray-400 mt-1">Ex: 3 posts = 1 manhã, 1 tarde, 1 noite (distribuídos nas datas).</p>
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Palavras-chave Globais</label>
-                            <input
-                                className="w-full border border-gray-300 p-3 rounded text-gray-900"
-                                value={batchKeywords}
-                                onChange={e => setBatchKeywords(e.target.value)}
-                                placeholder="motos, oficina, performance"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-100">
-                        <div className="flex justify-between text-sm mb-1">
-                            <span className="text-gray-600">Total de Artigos:</span>
-                            <span className="font-bold">{batchTopic ? batchTopic.split(/,|\n/).filter(t => t.trim()).length : 0}</span>
-                        </div>
-                        <div className="flex justify-between text-sm mb-1">
-                            <span className="text-gray-600">Duração do Cronograma:</span>
-                            <span className="font-bold">~{Math.ceil((batchTopic ? batchTopic.split(/,|\n/).filter(t => t.trim()).length : 0) / batchPostsPerDay)} dias</span>
-                        </div>
-                    </div>
-
-                    <button
-                        onClick={handleGenerateBatch}
-                        disabled={batchGenerating}
-                        className="mt-6 w-full bg-gradient-to-r from-wtech-gold to-yellow-600 text-black font-bold py-4 rounded-lg flex items-center justify-center gap-2 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {batchGenerating ? (
-                            <>
-                                <Loader2 className="animate-spin" />
-                                Gerando {generatedCount + 1}...
-                            </>
-                        ) : (
-                            <><CalendarClock /> INICIAR AGENDAMENTO</>
-                        )}
-                    </button>
-
-                    {batchGenerating && (
-                        <div className="mt-4 w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                            <div
-                                className="bg-wtech-gold h-full transition-all duration-500 linear"
-                                style={{ width: `${(generatedCount / Math.max(1, batchTopic.split(/,|\n/).length)) * 100}%` }}
-                            />
-                        </div>
-                    )}
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="h-full flex flex-col bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden text-gray-900">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                <div>
-                    <h2 className="text-xl font-bold text-gray-800">Gerenciador de Blog</h2>
-                    <p className="text-xs text-gray-500">Edite, aprove e analise a performance dos posts.</p>
-                </div>
-                <div className="flex gap-2">
-                    <button onClick={() => handleEdit()} className="bg-wtech-black text-white px-4 py-2 rounded font-bold text-sm hover:opacity-80">
-                        + Novo Post
-                    </button>
-                    <button onClick={() => setViewMode('ai_batch')} className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2 rounded font-bold text-sm hover:opacity-80 flex items-center gap-2">
-                        <Sparkles size={16} /> Agendador IA
-                    </button>
-                </div>
-            </div>
-
-                                </td>
-                                <td className="px-6 py-4">
-                                    <button
-                                        onClick={() => handleEdit(post)}
-                                        className="text-wtech-gold font-bold hover:underline flex items-center gap-1"
-                                    >
-                                        <Edit size={14} /> Editar
-                                    </button>
-                                    <button
-                                        onClick={() => handleDeletePost(post.id)}
-                                        className="text-red-600 font-bold hover:underline flex items-center gap-1 ml-4"
-                                    >
-                                        <Trash2 size={14} /> Excluir
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-};
 
 // --- View: Landing Page Builder (New) ---
 const LandingPagesView = () => {
@@ -1478,14 +314,18 @@ const CoursesManagerView = () => {
         expenses: 0,
         netResult: 0,
         studentsList: [] as any[],
-        expenseList: [] as any[]
+        expenseList: [] as any[],
+        leadsByOrigin: [] as any[]
     });
 
     const { user } = useAuth();
 
     // Permission Check helper specifically for Level 10
     const isLevel10 = () => {
-        return (typeof user?.role !== 'string' && user?.role?.level >= 10) || (typeof user?.role !== 'string' && user?.role?.name === 'Super Admin');
+        return (typeof user?.role === 'string' && (user.role === 'ADMIN' || user.role === 'Super Admin' || user.role === 'Admin')) ||
+            (typeof user?.role !== 'string' && user?.role?.level >= 10) ||
+            (typeof user?.role !== 'string' && user?.role?.name === 'Super Admin') ||
+            (typeof user?.role !== 'string' && user?.role?.permissions?.admin_access);
     };
 
     const handleOpenReport = async (course: Course) => {
@@ -1497,10 +337,58 @@ const CoursesManagerView = () => {
             // 1. Fetch Enrollments
             const { data: enrollments } = await supabase.from('SITE_Enrollments').select('*').eq('course_id', course.id);
 
-            // 2. Fetch Leads (Heuristic: Match context_id containing title)
-            const { data: leads } = await supabase.from('SITE_Leads').select('*').ilike('context_id', `%${course.title}%`);
+            // 2. Fetch Linked Landing Pages
+            const { data: relatedLPs } = await supabase.from('SITE_LandingPages').select('*').eq('course_id', course.id);
 
-            // 3. Fetch Expenses
+            // 3. Fetch Leads & Calculate Origins
+            // Strategy: Fetch leads and match strictly against Course Title OR any Linked LP
+            // We fetch wider and filter to ensure accuracy with "LP: Title (slug)" format
+            const { data: allLeadsRaw } = await supabase.from('SITE_Leads').select('*');
+            
+            let leads: any[] = [];
+            let leadsByOrigin: any[] = [];
+
+            if (allLeadsRaw) {
+                const searchTerms = [
+                    course.title.toLowerCase(),
+                    ...(relatedLPs?.map(lp => lp.title.toLowerCase()) || []),
+                    ...(relatedLPs?.map(lp => lp.slug.toLowerCase()) || [])
+                ];
+
+                leads = allLeadsRaw.filter(l => {
+                    if (!l.context_id) return false;
+                    const ctx = l.context_id.toLowerCase();
+                    return searchTerms.some(term => ctx.includes(term));
+                });
+
+                // Group by Origin
+                const originGroups: Record<string, { count: number, negotiating: number, converted: number }> = {};
+                
+                leads.forEach(l => {
+                    let originName = l.context_id;
+                    // Simplify "LP: Title (slug)" to just "LP: Title" or similar if desired, but keeping "Title" is good
+                    // Removing the slug part might look cleaner: "LP: Nome do Curso"
+                    if (originName.includes('(')) originName = originName.split('(')[0].trim();
+                    
+                    if (!originGroups[originName]) {
+                        originGroups[originName] = { count: 0, negotiating: 0, converted: 0 };
+                    }
+                    originGroups[originName].count++;
+                    
+                    if (l.status === 'Converted' || l.status === 'Matriculated') { // Ensure we catch converted
+                        originGroups[originName].converted++;
+                    } else if (!['Cold', 'Rejected', 'Lost'].includes(l.status)) {
+                        originGroups[originName].negotiating++;
+                    }
+                });
+
+                leadsByOrigin = Object.keys(originGroups).map(key => ({
+                    name: key,
+                    ...originGroups[key]
+                })).sort((a, b) => b.count - a.count);
+            }
+
+            // 4. Fetch Expenses
             const { data: expenses } = await supabase
                 .from('SITE_Transactions')
                 .select('*')
@@ -1514,9 +402,8 @@ const CoursesManagerView = () => {
             const totalExpenses = expenses?.reduce((acc: number, curr: any) => acc + Number(curr.amount), 0) || 0;
             const netResult = revenue - totalExpenses;
 
-            // Updated Lead Count Logic (Consistent with main list)
-            const totalLeads = leads?.length || leadsCount[course.id] || 0;
-            const inProgress = leads?.filter((l: any) => ['New', 'Contacted', 'Negotiating'].includes(l.status)).length || 0;
+            const totalLeads = leads.length;
+            const inProgress = leads.filter((l: any) => !['Converted', 'Cold', 'Rejected', 'Lost'].includes(l.status)).length;
 
             const students = enrollments?.map((e: any) => ({
                 name: e.student_name,
@@ -1534,7 +421,8 @@ const CoursesManagerView = () => {
                 expenses: totalExpenses,
                 netResult,
                 studentsList: students,
-                expenseList: expenses || []
+                expenseList: expenses || [],
+                leadsByOrigin
             });
 
         } catch (e) {
@@ -1550,7 +438,7 @@ const CoursesManagerView = () => {
 
         // Super Admin Override
         const roleName = typeof user.role === 'string' ? user.role : user.role?.name;
-        if (roleName === 'Super Admin' || user.permissions?.admin_access) return true;
+        if (roleName === 'Super Admin' || roleName === 'ADMIN' || user.permissions?.admin_access) return true;
 
         // Granular Check
         const rolePermissions = typeof user.role === 'object' ? user.role?.permissions : {};
@@ -2699,32 +1587,67 @@ const CoursesManagerView = () => {
                                     </div>
 
                                     {/* Charts / Funnel (Simplified Visual) */}
-                                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                                        <h4 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><Filter size={18} /> Funil de Vendas do Curso</h4>
-                                        <div className="flex flex-col gap-2">
-                                            {/* Top Funnel */}
-                                            <div className="w-full bg-blue-50 rounded-lg p-3 relative overflow-hidden group">
-                                                <div className="flex justify-between relative z-10 text-blue-900 font-bold text-sm">
-                                                    <span>Visitas / Leads</span>
-                                                    <span>{reportData.leadsCount}</span>
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                            <h4 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><Filter size={18} /> Funil de Vendas do Curso</h4>
+                                            <div className="flex flex-col gap-2">
+                                                {/* Top Funnel */}
+                                                <div className="w-full bg-blue-50 rounded-lg p-3 relative overflow-hidden group">
+                                                    <div className="flex justify-between relative z-10 text-blue-900 font-bold text-sm">
+                                                        <span>Visitas / Leads</span>
+                                                        <span>{reportData.leadsCount}</span>
+                                                    </div>
+                                                    <div className="absolute top-0 left-0 h-full bg-blue-200 w-full opacity-30"></div>
                                                 </div>
-                                                <div className="absolute top-0 left-0 h-full bg-blue-200 w-full opacity-30"></div>
+                                                {/* Mid Funnel */}
+                                                <div className="w-[80%] mx-auto bg-yellow-50 rounded-lg p-3 relative overflow-hidden group">
+                                                    <div className="flex justify-between relative z-10 text-yellow-900 font-bold text-sm">
+                                                        <span>Em Negociação</span>
+                                                        <span>{reportData.inProgressCount}</span>
+                                                    </div>
+                                                    <div className="absolute top-0 left-0 h-full bg-yellow-200 w-full opacity-30"></div>
+                                                </div>
+                                                {/* Bottom Funnel */}
+                                                <div className="w-[60%] mx-auto bg-green-50 rounded-lg p-3 relative overflow-hidden group">
+                                                    <div className="flex justify-between relative z-10 text-green-900 font-bold text-sm">
+                                                        <span>Matriculados</span>
+                                                        <span>{reportData.enrollmentsCount}</span>
+                                                    </div>
+                                                    <div className="absolute top-0 left-0 h-full bg-green-200 w-full opacity-30"></div>
+                                                </div>
                                             </div>
-                                            {/* Mid Funnel */}
-                                            <div className="w-[80%] mx-auto bg-yellow-50 rounded-lg p-3 relative overflow-hidden group">
-                                                <div className="flex justify-between relative z-10 text-yellow-900 font-bold text-sm">
-                                                    <span>Em Negociação</span>
-                                                    <span>{reportData.inProgressCount}</span>
-                                                </div>
-                                                <div className="absolute top-0 left-0 h-full bg-yellow-200 w-full opacity-30"></div>
-                                            </div>
-                                            {/* Bottom Funnel */}
-                                            <div className="w-[60%] mx-auto bg-green-50 rounded-lg p-3 relative overflow-hidden group">
-                                                <div className="flex justify-between relative z-10 text-green-900 font-bold text-sm">
-                                                    <span>Matriculados</span>
-                                                    <span>{reportData.enrollmentsCount}</span>
-                                                </div>
-                                                <div className="absolute top-0 left-0 h-full bg-green-200 w-full opacity-30"></div>
+                                        </div>
+
+                                        {/* Leads Origin Breakdown */}
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                            <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Globe size={18} /> Origem dos Leads (Landing Pages)</h4>
+                                            <div className="overflow-y-auto max-h-[200px] custom-scrollbar">
+                                                {reportData.leadsByOrigin && reportData.leadsByOrigin.length > 0 ? (
+                                                    <table className="w-full text-xs">
+                                                        <thead className="bg-gray-50 text-gray-500 font-bold">
+                                                            <tr>
+                                                                <th className="px-2 py-2 text-left">Origem / LP</th>
+                                                                <th className="px-2 py-2 text-center">Leads</th>
+                                                                <th className="px-2 py-2 text-center">Negoc.</th>
+                                                                <th className="px-2 py-2 text-center">Conv.</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-100">
+                                                            {reportData.leadsByOrigin.map((origin: any, i: number) => (
+                                                                <tr key={i}>
+                                                                    <td className="px-2 py-2 font-medium truncate max-w-[150px]" title={origin.name}>{origin.name.replace('LP:', '').trim()}</td>
+                                                                    <td className="px-2 py-2 text-center font-bold">{origin.count}</td>
+                                                                    <td className="px-2 py-2 text-center text-yellow-600">{origin.negotiating}</td>
+                                                                    <td className="px-2 py-2 text-center text-green-600 font-bold">{origin.converted}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                ) : (
+                                                    <div className="text-center text-gray-400 py-8 text-sm italic">
+                                                        Nenhuma informação de origem encontrada.
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -3647,7 +2570,7 @@ const FinanceView = () => {
 
         // Handle String Role
         if (typeof user.role === 'string') {
-            return user.role === 'Super Admin' || user.role === 'Admin';
+            return user.role === 'Super Admin' || user.role === 'Admin' || user.role === 'ADMIN';
         }
 
         // Handle Object Role
@@ -3924,7 +2847,7 @@ const FinanceView = () => {
                         <ArrowRight size={16} className="text-wtech-gold" /> Últimas Movimentações
                     </h3>
                     <div className="flex flex-wrap gap-2 w-full md:w-auto">
-                    <div className="flex flex-wrap gap-2 w-full md:w-auto">
+
                         {/* Removed duplicate date filter which was here */}
                         {hasPermission('financial_export') && (
                             <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 font-bold text-sm bg-white">
@@ -4679,6 +3602,24 @@ const SettingsView = () => {
                                 ))}
                             </div>
 
+                            {/* Dev Tools */}
+                            <div className="space-y-6">
+                                <h3 className="font-bold text-gray-900 border-b pb-2 flex items-center gap-2"><Shield size={18} /> Ferramentas do Sistema</h3>
+                                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                    <div>
+                                        <h4 className="font-bold text-sm text-gray-900">Painel do Desenvolvedor</h4>
+                                        <p className="text-xs text-gray-500">Ativa botão flutuante para troca rápida de usuários (para testes).</p>
+                                    </div>
+                                    <button
+                                        onClick={() => handleChange('enable_dev_panel', config.enable_dev_panel === 'true' ? 'false' : 'true')}
+                                        className={`w-12 h-6 rounded-full transition-colors relative ${config.enable_dev_panel === 'true' ? 'bg-red-600' : 'bg-gray-300'}`}
+                                    >
+                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${config.enable_dev_panel === 'true' ? 'left-7' : 'left-1'}`}></div>
+                                    </button>
+                                </div>
+                            </div>
+
+
                         </div>
                     </div>
                 )}
@@ -5278,6 +4219,7 @@ const Admin: React.FC = () => {
     const { settings: config } = useSettings();
     const [currentView, setCurrentView] = useState<View>('dashboard');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const { user, loading, logout } = useAuth();
     const navigate = useNavigate();
 
@@ -5297,85 +4239,148 @@ const Admin: React.FC = () => {
     return (
         <div className="flex h-screen bg-[#F8F9FA] overflow-hidden">
 
-            {/* Mobile Header / Hamburger */}
-            <div className="md:hidden fixed top-0 w-full z-20 bg-black text-white p-4 flex justify-between items-center shadow-lg">
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded bg-gradient-to-br from-wtech-gold to-yellow-600 flex items-center justify-center font-bold text-black font-sans">W</div>
-                    <span className="font-bold tracking-tight">ADMIN</span>
-                </div>
-                <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
-                    {isMobileMenuOpen ? <X size={24} /> : <List size={24} />}
-                </button>
-            </div>
 
-            {/* Sidebar (Desktop + Mobile Overlay) */}
+
+            {/* Sidebar (Desktop Only) */}
             <div className={`
-            fixed inset-y-0 left-0 z-30 w-64 bg-black text-white p-6 transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 flex flex-col justify-between shadow-2xl
-            ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+            hidden md:flex flex-col justify-between shadow-2xl bg-black text-white p-4 transition-all duration-300 ease-in-out relative z-30 ${isSidebarCollapsed ? 'w-20' : 'w-64'}
         `}>
                 <div>
-                    <div className="flex items-center gap-3 mb-10 mt-12 md:mt-0">
-                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-wtech-gold to-yellow-600 flex items-center justify-center text-black font-bold text-xl font-sans shadow-lg shadow-yellow-500/20">
-                            {config.logo_url ? <img src={config.logo_url} className="w-full h-full object-cover rounded-lg" /> : 'W'}
+                    {/* Brand / Toggle */}
+                    <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center flex-col gap-4' : 'gap-3'} mb-8 mt-12 md:mt-0 transition-all`}>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-wtech-gold to-yellow-600 flex items-center justify-center text-black font-bold text-xl font-sans shadow-lg shadow-yellow-500/20 shrink-0">
+                                {config.logo_url ? <img src={config.logo_url} className="w-full h-full object-cover rounded-lg" /> : 'W'}
+                            </div>
+                            {!isSidebarCollapsed && (
+                                <div className="overflow-hidden whitespace-nowrap">
+                                    <h1 className="font-black text-xl tracking-tighter text-white leading-none">{config.site_title || 'W-TECH'}</h1>
+                                    <p className="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Admin</p>
+                                </div>
+                            )}
                         </div>
-                        <div>
-                            <h1 className="font-black text-xl tracking-tighter text-white leading-none">{config.site_title || 'W-TECH'}</h1>
-                            <p className="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Admin</p>
-                        </div>
+                        {/* Desktop Toggle Button */}
+                        <button 
+                            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} 
+                            className={`hidden md:flex items-center justify-center w-6 h-6 rounded-full bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors ${isSidebarCollapsed ? 'mt-2' : 'ml-auto'}`}
+                        >
+                            {isSidebarCollapsed ? <ArrowRight size={14} /> : <ChevronLeft size={14} />}
+                        </button>
                     </div>
 
                     {/* Sidebar User Profile */}
-                    <div onClick={() => { setCurrentView('team'); setIsMobileMenuOpen(false); }} className="mb-6 mx-2 p-3 bg-white/5 rounded-xl border border-white/10 flex items-center gap-3 cursor-pointer hover:bg-white/10 transition-colors group">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-wtech-gold to-yellow-700 flex items-center justify-center text-black font-bold text-lg shadow-lg">
+                    <div onClick={() => { setCurrentView('team'); setIsMobileMenuOpen(false); }} className={`mb-6 p-2 bg-white/5 rounded-xl border border-white/10 flex items-center gap-3 cursor-pointer hover:bg-white/10 transition-colors group ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-wtech-gold to-yellow-700 flex items-center justify-center text-black font-bold text-sm shadow-lg shrink-0">
                             {user?.name?.charAt(0)}
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <div className="text-sm font-bold text-white truncate group-hover:text-wtech-gold transition-colors">{user?.name}</div>
-                            <div className="text-[10px] text-gray-400 font-medium uppercase truncate">
-                                {typeof user?.role === 'string' ? user?.role : (user?.role?.name || 'Sem Cargo')}
+                        {!isSidebarCollapsed && (
+                            <div className="flex-1 min-w-0 overflow-hidden">
+                                <div className="text-sm font-bold text-white truncate group-hover:text-wtech-gold transition-colors">{user?.name}</div>
+                                <div className="text-[10px] text-gray-400 font-medium uppercase truncate">
+                                    {typeof user?.role === 'string' ? user?.role : (user?.role?.name || 'Sem Cargo')}
+                                </div>
                             </div>
-                        </div>
-                        <Settings size={14} className="text-gray-500 group-hover:text-white transition-colors" />
+                        )}
+                        {!isSidebarCollapsed && <Settings size={14} className="text-gray-500 group-hover:text-white transition-colors" />}
                     </div>
 
-                    <div className="space-y-1 overflow-y-auto max-h-[calc(100vh-180px)] custom-scrollbar">
-                        <SidebarItem icon={LayoutDashboard} label="Visão Geral" active={currentView === 'dashboard'} onClick={() => { setCurrentView('dashboard'); setIsMobileMenuOpen(false); }} />
-                        <SidebarItem icon={KanbanSquare} label="Leads & CRM" active={currentView === 'crm'} onClick={() => { setCurrentView('crm'); setIsMobileMenuOpen(false); }} />
-                        <SidebarItem icon={Users} label="Equipe & Acesso" active={currentView === 'team'} onClick={() => { setCurrentView('team'); setIsMobileMenuOpen(false); }} />
-                        <SidebarItem icon={ShoppingBag} label="Pedidos (Loja)" active={currentView === 'orders'} onClick={() => { setCurrentView('orders'); setIsMobileMenuOpen(false); }} />
-                        <SidebarItem icon={GraduationCap} label="Cursos & Alunos" active={currentView === 'courses_manager'} onClick={() => { setCurrentView('courses_manager'); setIsMobileMenuOpen(false); }} />
-                        <SidebarItem icon={Wrench} label="Rede Credenciada" active={currentView === 'mechanics'} onClick={() => { setCurrentView('mechanics'); setIsMobileMenuOpen(false); }} />
-                        <SidebarItem icon={DollarSign} label="Fluxo de Caixa" active={currentView === 'finance'} onClick={() => { setCurrentView('finance'); setIsMobileMenuOpen(false); }} />
-                        <SidebarItem icon={Monitor} label="Landing Pages" active={currentView === 'lp_builder'} onClick={() => { setCurrentView('lp_builder'); setIsMobileMenuOpen(false); }} />
+                    <div className="space-y-1 overflow-y-auto max-h-[calc(100vh-200px)] custom-scrollbar">
+                        <SidebarItem icon={LayoutDashboard} label="Visão Geral" active={currentView === 'dashboard'} onClick={() => { setCurrentView('dashboard'); setIsMobileMenuOpen(false); }} collapsed={isSidebarCollapsed} />
+                        <SidebarItem icon={KanbanSquare} label="Leads & CRM" active={currentView === 'crm'} onClick={() => { setCurrentView('crm'); setIsMobileMenuOpen(false); }} collapsed={isSidebarCollapsed} />
+                        <SidebarItem icon={Users} label="Equipe & Acesso" active={currentView === 'team'} onClick={() => { setCurrentView('team'); setIsMobileMenuOpen(false); }} collapsed={isSidebarCollapsed} />
+                        <SidebarItem icon={ShoppingBag} label="Pedidos (Loja)" active={currentView === 'orders'} onClick={() => { setCurrentView('orders'); setIsMobileMenuOpen(false); }} collapsed={isSidebarCollapsed} />
+                        <SidebarItem icon={GraduationCap} label="Cursos & Alunos" active={currentView === 'courses_manager'} onClick={() => { setCurrentView('courses_manager'); setIsMobileMenuOpen(false); }} collapsed={isSidebarCollapsed} />
+                        <SidebarItem icon={Wrench} label="Rede Credenciada" active={currentView === 'mechanics'} onClick={() => { setCurrentView('mechanics'); setIsMobileMenuOpen(false); }} collapsed={isSidebarCollapsed} />
+                        <SidebarItem icon={DollarSign} label="Fluxo de Caixa" active={currentView === 'finance'} onClick={() => { setCurrentView('finance'); setIsMobileMenuOpen(false); }} collapsed={isSidebarCollapsed} />
+                        <SidebarItem icon={Monitor} label="Landing Pages" active={currentView === 'lp_builder'} onClick={() => { setCurrentView('lp_builder'); setIsMobileMenuOpen(false); }} collapsed={isSidebarCollapsed} />
 
-                        <div className="pt-4 mt-4 border-t border-gray-800">
-                            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2 px-3">Conteúdo & IA</p>
+                        <div className={`pt-4 mt-4 border-t border-gray-800 ${isSidebarCollapsed ? 'flex justify-center' : ''}`}>
+                             {!isSidebarCollapsed && <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2 px-3">Conteúdo & IA</p>}
 
-                            <SidebarItem icon={BookOpen} label="Blog Manager" active={currentView === 'blog_manager'} onClick={() => { setCurrentView('blog_manager'); setIsMobileMenuOpen(false); }} />
-                            <SidebarItem icon={Mail} label="Email Marketing" active={currentView === 'email_marketing'} onClick={() => { setCurrentView('email_marketing'); setIsMobileMenuOpen(false); }} />
+                            <SidebarItem icon={BookOpen} label="Blog Manager" active={currentView === 'blog_manager'} onClick={() => { setCurrentView('blog_manager'); setIsMobileMenuOpen(false); }} collapsed={isSidebarCollapsed} />
+                            <SidebarItem icon={Mail} label="Email Marketing" active={currentView === 'email_marketing'} onClick={() => { setCurrentView('email_marketing'); setIsMobileMenuOpen(false); }} collapsed={isSidebarCollapsed} />
                         </div>
 
                         <div className="pt-4 mt-4 border-t border-gray-800">
-                            <SidebarItem icon={Settings} label="Configurações" active={currentView === 'settings'} onClick={() => { setCurrentView('settings'); setIsMobileMenuOpen(false); }} />
+                            <SidebarItem icon={Settings} label="Configurações" active={currentView === 'settings'} onClick={() => { setCurrentView('settings'); setIsMobileMenuOpen(false); }} collapsed={isSidebarCollapsed} />
                         </div>
                     </div>
                 </div>
 
-                <button onClick={handleLogout} className="w-full mb-4 md:mb-0 flex items-center justify-center gap-2 p-3 rounded-lg border border-red-900/30 text-red-500 hover:bg-red-900/10 font-bold transition-all text-xs uppercase tracking-wide">
-                    <LogOut size={16} /> Sair do Sistema
+                <button onClick={handleLogout} className={`w-full mb-4 md:mb-0 flex items-center justify-center gap-2 p-3 rounded-lg border border-red-900/30 text-red-500 hover:bg-red-900/10 font-bold transition-all text-xs uppercase tracking-wide ${isSidebarCollapsed ? '' : ''}`} title="Sair">
+                    <LogOut size={16} /> {!isSidebarCollapsed && "Sair do Sistema"}
                 </button>
             </div>
 
-            {/* Mobile Overlay Backdrop */}
-            {isMobileMenuOpen && (
-                <div
-                    className="fixed inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                />
-            )}
+            {/* Mobile Bottom FAB (Floating Action Button) */}
+            <AnimatePresence>
+                {!isMobileMenuOpen && (
+                    <motion.button
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0, opacity: 0 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => setIsMobileMenuOpen(true)}
+                        className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-16 h-16 bg-black/80 backdrop-blur-md rounded-full shadow-2xl flex items-center justify-center border border-white/20 text-wtech-gold"
+                    >
+                        <List size={28} strokeWidth={3} />
+                    </motion.button>
+                )}
+            </AnimatePresence>
+
+            {/* Mobile Glass Menu Overlay (iPhone Style) */}
+            <AnimatePresence>
+                {isMobileMenuOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
+                        animate={{ opacity: 1, backdropFilter: "blur(20px)" }}
+                        exit={{ opacity: 0, backdropFilter: "blur(0px)" }}
+                        className="fixed inset-0 z-50 bg-black/40 flex flex-col items-center justify-end md:hidden"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                        <motion.div
+                            initial={{ y: "100%" }}
+                            animate={{ y: 0 }}
+                            exit={{ y: "100%" }}
+                            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                            className="w-full h-[85vh] bg-white/20 backdrop-blur-2xl rounded-t-[40px] border-t border-white/20 shadow-[0_-10px_40px_rgba(0,0,0,0.3)] p-8 flex flex-col"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="w-12 h-1.5 bg-white/30 rounded-full mx-auto mb-8"></div>
+                            
+                            <div className="grid grid-cols-3 gap-6 mb-auto overflow-y-auto">
+                                <MobileMenuItem icon={LayoutDashboard} label="Visão Geral" onClick={() => { setCurrentView('dashboard'); setIsMobileMenuOpen(false); }} />
+                                <MobileMenuItem icon={KanbanSquare} label="Leads & CRM" onClick={() => { setCurrentView('crm'); setIsMobileMenuOpen(false); }} />
+                                <MobileMenuItem icon={Users} label="Equipe" onClick={() => { setCurrentView('team'); setIsMobileMenuOpen(false); }} />
+                                <MobileMenuItem icon={ShoppingBag} label="Loja" onClick={() => { setCurrentView('orders'); setIsMobileMenuOpen(false); }} />
+                                <MobileMenuItem icon={GraduationCap} label="Cursos" onClick={() => { setCurrentView('courses_manager'); setIsMobileMenuOpen(false); }} />
+                                <MobileMenuItem icon={Wrench} label="Oficinas" onClick={() => { setCurrentView('mechanics'); setIsMobileMenuOpen(false); }} />
+                                <MobileMenuItem icon={DollarSign} label="Financeiro" onClick={() => { setCurrentView('finance'); setIsMobileMenuOpen(false); }} />
+                                <MobileMenuItem icon={Monitor} label="Páginas" onClick={() => { setCurrentView('lp_builder'); setIsMobileMenuOpen(false); }} />
+                                <MobileMenuItem icon={BookOpen} label="Blog" onClick={() => { setCurrentView('blog_manager'); setIsMobileMenuOpen(false); }} />
+                                <MobileMenuItem icon={Mail} label="Marketing" onClick={() => { setCurrentView('email_marketing'); setIsMobileMenuOpen(false); }} />
+                                <MobileMenuItem icon={Settings} label="Ajustes" onClick={() => { setCurrentView('settings'); setIsMobileMenuOpen(false); }} />
+                                <button onClick={handleLogout} className="flex flex-col items-center gap-3 group">
+                                    <div className="w-16 h-16 rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-500 shadow-lg group-active:scale-95 transition-transform">
+                                        <LogOut size={28} />
+                                    </div>
+                                    <span className="text-xs font-medium text-white shadow-black drop-shadow-md">Sair</span>
+                                </button>
+                            </div>
+
+                            <button 
+                                onClick={() => setIsMobileMenuOpen(false)}
+                                className="w-16 h-16 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white mx-auto mt-4 active:scale-95 transition-transform"
+                            >
+                                <X size={24} />
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Main Content */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden pt-16 md:pt-0 bg-gray-50/50">
+            <div className={`flex-1 overflow-y-auto overflow-x-hidden md:pt-0 bg-gray-50/50 ${isMobileMenuOpen ? 'blur-sm scale-95 transition-all duration-300' : 'transition-all duration-300'}`}>
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={currentView}
@@ -5399,6 +4404,7 @@ const Admin: React.FC = () => {
                     </motion.div>
                 </AnimatePresence>
             </div>
+            {config?.enable_dev_panel === 'true' && <DevUserSwitcher />}
         </div>
     );
 };

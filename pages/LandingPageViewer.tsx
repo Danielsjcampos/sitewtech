@@ -5,6 +5,7 @@ import { LandingPage, Course } from '../types';
 import { CheckCircle, ShieldCheck, ArrowRight, Star, Play, MapPin, Calendar, Clock, Check, User, Users, AlertTriangle, Navigation } from 'lucide-react';
 import { triggerWebhook } from '../lib/webhooks';
 import { distributeLead } from '../lib/leadDistribution';
+import { QualificationQuiz } from '../components/QualificationQuiz';
 
 const LandingPageViewer: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -113,6 +114,7 @@ const LandingPageViewer: React.FC = () => {
             pixelId: (lpData as any).pixel_id,
             modules: lpData.modules,
             heroSecondaryImage: (lpData as any).hero_secondary_image,
+            quizEnabled: (lpData as any).quiz_enabled,
             course: mappedCourse
         };
         setLp(mappedData);
@@ -136,6 +138,8 @@ const LandingPageViewer: React.FC = () => {
     if (!lp) return;
 
     try {
+        const assignedTo = await distributeLead(); // Get distributed user
+        
         const payload = {
             name: form.name,
             email: form.email,
@@ -144,14 +148,22 @@ const LandingPageViewer: React.FC = () => {
             status: 'New',
             context_id: `LP: ${lp.title} (${lp.slug})`,
             tags: ['landing_page', lp.slug ? String(lp.slug) : 'virtual_lp'],
-            origin: window.location.href
+            origin: window.location.href,
+            assigned_to: assignedTo // Add assignment
         };
 
-        await supabase.from('SITE_Leads').insert([payload]);
+        const { error } = await supabase.from('SITE_Leads').insert([payload]);
+        
+        if (error) {
+            console.error("Erro ao salvar lead:", error);
+            throw error;
+        }
+
         await triggerWebhook('webhook_lead', payload);
         setSubmitted(true);
-    } catch (err) {
-        alert('Erro ao enviar. Tente novamente.');
+    } catch (err: any) {
+        console.error(err);
+        alert('Erro ao enviar inscrição. verifique o console ou contate o suporte.');
     }
   };
 
@@ -171,9 +183,13 @@ const LandingPageViewer: React.FC = () => {
         <header className="fixed top-0 left-0 w-full z-50 bg-black/60 backdrop-blur-md border-b border-white/5 transition-all duration-300">
             <div className="container mx-auto px-6 h-20 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-wtech-gold rounded-sm transform rotate-45 flex items-center justify-center">
-                        <span className="transform -rotate-45 font-bold text-black text-xs">W</span>
-                    </div>
+                    {systemLogo ? (
+                        <img src={systemLogo} alt="Logo" className="h-10 object-contain" />
+                    ) : (
+                        <div className="w-8 h-8 bg-wtech-gold rounded-sm transform rotate-45 flex items-center justify-center">
+                            <span className="transform -rotate-45 font-bold text-black text-xs">W</span>
+                        </div>
+                    )}
                     <span className="font-bold text-lg tracking-wider">W-TECH <span className="text-wtech-gold">ACADEMY</span></span>
                 </div>
                 <button onClick={scrollToForm} className="hidden md:flex bg-gradient-to-r from-wtech-gold to-yellow-600 text-black px-6 py-2.5 rounded-lg font-bold uppercase text-xs tracking-widest hover:shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all">
@@ -489,65 +505,69 @@ const LandingPageViewer: React.FC = () => {
                 <div className="max-w-xl mx-auto bg-white/5 backdrop-blur-xl border border-white/10 p-8 md:p-12 rounded-3xl shadow-2xl relative group">
                      <div className="absolute -inset-1 bg-gradient-to-r from-wtech-gold to-transparent opacity-20 rounded-3xl blur group-hover:opacity-40 transition-opacity duration-1000"></div>
                      <div className="relative">
-                        {submitted ? (
-                                <div className="text-center py-12 animate-fade-in bg-green-500/10 rounded-xl border border-green-500/20">
-                                    <div className="w-20 h-20 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-900/20">
-                                        <Check size={40} strokeWidth={3} />
-                                    </div>
-                                    <h3 className="text-2xl font-bold text-white mb-2">Inscrição Recebida!</h3>
-                                    <p className="text-green-200">Em breve entraremos em contato pelo WhatsApp.</p>
-                                </div>
+                        {lp.quizEnabled ? (
+                            <QualificationQuiz lp={lp} onComplete={() => setSubmitted(true)} />
                         ) : (
-                                <form onSubmit={handleSubmit} className="space-y-6">
-                                    <div className="group-form">
-                                        <label className="text-xs font-bold text-gray-500 uppercase ml-1 mb-2 block">Nome Completo</label>
-                                        <div className="relative">
-                                            <User className="absolute left-4 top-3.5 text-gray-500" size={20} />
-                                            <input 
-                                                required 
-                                                value={form.name} 
-                                                onChange={e => setForm({...form, name: e.target.value})}
-                                                className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white focus:border-wtech-gold/50 focus:ring-1 focus:ring-wtech-gold/50 outline-none transition-all placeholder:text-gray-700" 
-                                                placeholder="Digite seu nome" 
-                                            />
+                            submitted ? (
+                                    <div className="text-center py-12 animate-fade-in bg-green-500/10 rounded-xl border border-green-500/20">
+                                        <div className="w-20 h-20 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-900/20">
+                                            <Check size={40} strokeWidth={3} />
                                         </div>
+                                        <h3 className="text-2xl font-bold text-white mb-2">Inscrição Recebida!</h3>
+                                        <p className="text-green-200">Em breve entraremos em contato pelo WhatsApp.</p>
                                     </div>
-                                    <div className="group-form">
-                                        <label className="text-xs font-bold text-gray-500 uppercase ml-1 mb-2 block">WhatsApp</label>
-                                        <div className="relative">
-                                            <span className="absolute left-4 top-4 text-gray-500 font-bold text-xs">BR</span>
-                                            <input 
-                                                required 
-                                                value={form.phone} 
-                                                onChange={e => setForm({...form, phone: e.target.value})}
-                                                className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white focus:border-wtech-gold/50 focus:ring-1 focus:ring-wtech-gold/50 outline-none transition-all placeholder:text-gray-700" 
-                                                placeholder="(00) 00000-0000" 
-                                            />
+                            ) : (
+                                    <form onSubmit={handleSubmit} className="space-y-6">
+                                        <div className="group-form">
+                                            <label className="text-xs font-bold text-gray-500 uppercase ml-1 mb-2 block">Nome Completo</label>
+                                            <div className="relative">
+                                                <User className="absolute left-4 top-3.5 text-gray-500" size={20} />
+                                                <input 
+                                                    required 
+                                                    value={form.name} 
+                                                    onChange={e => setForm({...form, name: e.target.value})}
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white focus:border-wtech-gold/50 focus:ring-1 focus:ring-wtech-gold/50 outline-none transition-all placeholder:text-gray-700" 
+                                                    placeholder="Digite seu nome" 
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="group-form">
-                                        <label className="text-xs font-bold text-gray-500 uppercase ml-1 mb-2 block">E-mail</label>
-                                        <div className="relative">
-                                            <div className="absolute left-4 top-4 text-gray-500">@</div>
-                                            <input 
-                                                required 
-                                                type="email"
-                                                value={form.email} 
-                                                onChange={e => setForm({...form, email: e.target.value})}
-                                                className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white focus:border-wtech-gold/50 focus:ring-1 focus:ring-wtech-gold/50 outline-none transition-all placeholder:text-gray-700" 
-                                                placeholder="seu@email.com" 
-                                            />
+                                        <div className="group-form">
+                                            <label className="text-xs font-bold text-gray-500 uppercase ml-1 mb-2 block">WhatsApp</label>
+                                            <div className="relative">
+                                                <span className="absolute left-4 top-4 text-gray-500 font-bold text-xs">BR</span>
+                                                <input 
+                                                    required 
+                                                    value={form.phone} 
+                                                    onChange={e => setForm({...form, phone: e.target.value})}
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white focus:border-wtech-gold/50 focus:ring-1 focus:ring-wtech-gold/50 outline-none transition-all placeholder:text-gray-700" 
+                                                    placeholder="(00) 00000-0000" 
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
-                                    
-                                    <button className="w-full bg-wtech-gold text-black font-black text-xl py-5 rounded-xl hover:bg-white hover:scale-[1.02] transition-all uppercase tracking-wide shadow-xl flex items-center justify-center gap-3">
-                                        Fazer Pré-Inscrição <ArrowRight strokeWidth={3} />
-                                    </button>
-                                    
-                                    <div className="text-center text-xs text-gray-600 flex items-center justify-center gap-2">
-                                        <ShieldCheck size={12} /> Seus dados estão protegidos. Sem spam.
-                                    </div>
-                                </form>
+                                        <div className="group-form">
+                                            <label className="text-xs font-bold text-gray-500 uppercase ml-1 mb-2 block">E-mail</label>
+                                            <div className="relative">
+                                                <div className="absolute left-4 top-4 text-gray-500">@</div>
+                                                <input 
+                                                    required 
+                                                    type="email"
+                                                    value={form.email} 
+                                                    onChange={e => setForm({...form, email: e.target.value})}
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white focus:border-wtech-gold/50 focus:ring-1 focus:ring-wtech-gold/50 outline-none transition-all placeholder:text-gray-700" 
+                                                    placeholder="seu@email.com" 
+                                                />
+                                            </div>
+                                        </div>
+                                        
+                                        <button className="w-full bg-wtech-gold text-black font-black text-xl py-5 rounded-xl hover:bg-white hover:scale-[1.02] transition-all uppercase tracking-wide shadow-xl flex items-center justify-center gap-3">
+                                            Fazer Pré-Inscrição <ArrowRight strokeWidth={3} />
+                                        </button>
+                                        
+                                        <div className="text-center text-xs text-gray-600 flex items-center justify-center gap-2">
+                                            <ShieldCheck size={12} /> Seus dados estão protegidos. Sem spam.
+                                        </div>
+                                    </form>
+                            )
                         )}
                      </div>
                 </div>

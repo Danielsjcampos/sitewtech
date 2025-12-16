@@ -66,7 +66,8 @@ export const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ course, on
                 instructorBio: data.instructor_bio,
                 instructorImage: data.instructor_image,
                 whatsappNumber: data.whatsapp_number,
-                modules: data.modules || [] // Ensure array
+                modules: data.modules || [], // Ensure array
+                quizEnabled: data.quiz_enabled
             });
         }
         setLoading(false);
@@ -90,7 +91,8 @@ export const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ course, on
                     instructor_name: lp.instructorName,
                     instructor_bio: lp.instructorBio,
                     instructor_image: lp.instructorImage,
-                    whatsapp_number: lp.whatsappNumber
+                    whatsapp_number: lp.whatsappNumber,
+                    quiz_enabled: lp.quizEnabled
                 }, { onConflict: 'course_id' })
                 .select()
                 .single();
@@ -108,7 +110,8 @@ export const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ course, on
                     instructorBio: data.instructor_bio,
                     instructorImage: data.instructor_image,
                     whatsappNumber: data.whatsapp_number,
-                    modules: data.modules
+                    modules: data.modules,
+                    quizEnabled: data.quiz_enabled
                 }));
             }
             alert('Página salva com sucesso!');
@@ -244,6 +247,19 @@ export const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ course, on
                                         <input className="flex-1 bg-white border border-gray-200 p-3 rounded-lg focus:ring-2 focus:ring-black outline-none transition-all" value={lp.heroSecondaryImage || ''} onChange={e => setLp({ ...lp, heroSecondaryImage: e.target.value })} placeholder="https://..." />
                                         {lp.heroSecondaryImage && <img src={lp.heroSecondaryImage} className="w-12 h-12 object-cover rounded shadow" alt="Preview" />}
                                     </div>
+                                </div>
+                                
+                                <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl flex items-center justify-between mt-4">
+                                    <div>
+                                        <h4 className="font-bold text-gray-800 flex items-center gap-2">
+                                            <CheckSquare className="text-purple-600" size={18} /> Quiz Interativo de Qualificação
+                                        </h4>
+                                        <p className="text-xs text-gray-500 max-w-md">Ative para substituir o formulário padrão por um quiz de 5 perguntas que qualifica o lead (Frio, Morno, Quente).</p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" className="sr-only peer" checked={lp.quizEnabled || false} onChange={e => setLp({ ...lp, quizEnabled: e.target.checked })} />
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                                    </label>
                                 </div>
                             </div>
                         )}

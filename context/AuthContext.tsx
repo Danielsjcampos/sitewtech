@@ -8,7 +8,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   showLoginModal: boolean;
-  setShowLoginModal: (show: boolean) => void;
+  impersonateUser: (user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -64,7 +64,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         id: userData.id,
         name: userData.name,
         email: userData.email,
-        role: roleData || 'User', // Fallback
+        role: roleData || userData.role || 'User', // Fallback to DB role column if role_id is null
         avatar: userData.avatar,
         permissions: userData.permissions || (roleData?.permissions) || {},
         status: userData.status,
@@ -89,8 +89,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     window.location.href = '/';
   };
 
+  const impersonateUser = (newUser: User) => {
+      setUser(newUser);
+      localStorage.setItem('wtech_user', JSON.stringify(newUser));
+      // Force reload to ensure all components pick up the new user context if needed, or just let React handle it.
+      // React state update is enough.
+      console.log("Impersonating:", newUser.name);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, showLoginModal, setShowLoginModal }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, showLoginModal, setShowLoginModal, impersonateUser }}>
       {children}
     </AuthContext.Provider>
   );

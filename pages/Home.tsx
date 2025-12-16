@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Calendar, ArrowRight, Star, CheckCircle, Search, Play, Instagram, Award, Menu, X, Phone, Mail, Clock } from 'lucide-react';
+import { triggerWebhook } from '../lib/webhooks';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Mechanic } from '../types';
@@ -599,25 +600,55 @@ const Home = () => {
                         <div className="lg:col-span-8">
                             <div className="bg-gray-50 p-8 lg:p-12 rounded-[2rem]">
                                 <h3 className="text-2xl font-bold text-gray-900 mb-8">Envie uma mensagem</h3>
-                                <form className="space-y-6">
+                                <form onSubmit={async (e) => {
+                                    e.preventDefault();
+                                    const formEl = e.target as HTMLFormElement;
+                                    const btn = formEl.querySelector('button');
+                                    if(btn) btn.disabled = true;
+                                    
+                                    const formData = new FormData(formEl);
+                                    const payload = {
+                                        name: formData.get('name'),
+                                        email: formData.get('email'),
+                                        phone: formData.get('phone'),
+                                        type: 'Contact_Home',
+                                        status: 'New',
+                                        context_id: `Assunto: ${formData.get('subject')} | Msg: ${formData.get('message')}`,
+                                        tags: ['home_contact', 'website'],
+                                        origin: window.location.href,
+                                        assigned_to: null 
+                                    };
+
+                                    try {
+                                        await supabase.from('SITE_Leads').insert([payload]);
+                                        try { await triggerWebhook('webhook_lead', payload); } catch(e) {}
+                                        alert('Mensagem enviada com sucesso!');
+                                        formEl.reset();
+                                    } catch (err) {
+                                        console.error(err);
+                                        alert('Erro ao enviar mensagem.');
+                                    } finally {
+                                        if(btn) btn.disabled = false;
+                                    }
+                                }} className="space-y-6">
                                     <div className="grid md:grid-cols-2 gap-6">
                                         <div>
                                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Nome Completo</label>
-                                            <input type="text" className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-wtech-gold transition-colors" placeholder="Seu nome" />
+                                            <input name="name" required type="text" className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-wtech-gold transition-colors" placeholder="Seu nome" />
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Seu E-mail</label>
-                                            <input type="email" className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-wtech-gold transition-colors" placeholder="exemplo@email.com" />
+                                            <input name="email" required type="email" className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-wtech-gold transition-colors" placeholder="exemplo@email.com" />
                                         </div>
                                     </div>
                                     <div className="grid md:grid-cols-2 gap-6">
                                         <div>
                                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Telefone / WhatsApp</label>
-                                            <input type="tel" className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-wtech-gold transition-colors" placeholder="(00) 00000-0000" />
+                                            <input name="phone" required type="tel" className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-wtech-gold transition-colors" placeholder="(00) 00000-0000" />
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Assunto</label>
-                                            <select className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-wtech-gold transition-colors">
+                                            <select name="subject" className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-wtech-gold transition-colors">
                                                 <option>Cursos Presenciais</option>
                                                 <option>Cursos Online</option>
                                                 <option>Suporte Técnico</option>
@@ -627,9 +658,9 @@ const Home = () => {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Sua Mensagem</label>
-                                        <textarea rows={5} className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-wtech-gold transition-colors" placeholder="Como podemos ajudar?"></textarea>
+                                        <textarea name="message" required rows={5} className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-wtech-gold transition-colors" placeholder="Como podemos ajudar?"></textarea>
                                     </div>
-                                    <button type="submit" className="w-full md:w-auto px-10 py-4 bg-black text-white font-bold rounded-lg hover:bg-wtech-gold hover:text-black transition-colors uppercase tracking-wide shadow-lg">
+                                    <button type="submit" className="w-full md:w-auto px-10 py-4 bg-black text-white font-bold rounded-lg hover:bg-wtech-gold hover:text-black transition-colors uppercase tracking-wide shadow-lg disabled:opacity-50">
                                         Enviar Mensagem
                                     </button>
                                 </form>

@@ -125,6 +125,7 @@ export interface LandingPage {
   pixelId?: string; // Facebook Pixel
   modules?: { title: string; description: string; image: string }[];
   heroSecondaryImage?: string;
+  quizEnabled?: boolean; // Mapped from quiz_enabled
 }
 
 
@@ -134,7 +135,7 @@ export interface Lead {
   email: string;
   phone: string;
   type: 'Course_Registration' | 'Contact_Form' | 'Newsletter' | 'Course_Purchase';
-  status: 'New' | 'Contacted' | 'Negotiating' | 'Converted';
+  status: 'New' | 'Contacted' | 'Negotiating' | 'Converted' | 'Qualified' | 'Matriculated' | 'CheckedIn' | 'Cold' | 'Rejected' | 'Lost';
   contextId?: string; // Mapped from context_id
   createdAt: string; // Mapped from created_at
   assignedTo?: string; // Mapped from assigned_to

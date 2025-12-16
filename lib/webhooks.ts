@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient';
 
-export const triggerWebhook = async (triggerKey: 'webhook_lead' | 'webhook_order' | 'webhook_mechanic', payload: any) => {
+export const triggerWebhook = async (triggerKey: 'webhook_lead' | 'webhook_order' | 'webhook_mechanic' | 'webhook_lead_started' | 'webhook_lead_completed', payload: any) => {
   try {
     // 1. Get the URL from Settings
     const { data } = await supabase
