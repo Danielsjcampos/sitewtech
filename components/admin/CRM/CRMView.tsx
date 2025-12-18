@@ -278,14 +278,16 @@ const LeadCard: React.FC<{ lead: any, onClick: () => void, usersMap: Record<stri
 
             <div className="flex items-center justify-between mt-3 text-xs text-gray-500 border-t border-gray-50 pt-3">
                 <div className="flex items-center gap-1">
-                    {lead.assignedTo && usersMap[lead.assignedTo] ? (
-                        <span className="flex items-center gap-1 bg-yellow-50 text-yellow-800 px-2 py-0.5 rounded-full" title={usersMap[lead.assignedTo]}>
-                            <Users size={10} /> {usersMap[lead.assignedTo].split(' ')[0]} {/* First Name */}
+                    {/* Consistent User Display Logic */}
+                    {lead.assignedTo ? (
+                        <span className="flex items-center gap-1 bg-yellow-50 text-yellow-800 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider text-[9px]" title={usersMap[lead.assignedTo] || lead.assignedTo}>
+                            <Users size={10} /> 
+                            {usersMap[lead.assignedTo] ? usersMap[lead.assignedTo].split(' ')[0] : 'Usuário...'}
                         </span>
-                    ) : lead.assignedTo ? (
-                        <span className="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded-full"><Users size={10} /> Atribuído</span>
                     ) : (
-                        <span className="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded-full"><Users size={10} /> Sem Dono</span>
+                        <span className="flex items-center gap-1 bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider text-[9px]">
+                            <Users size={10} /> Fila
+                        </span>
                     )}
                 </div>
                 <button className="text-gray-400 hover:text-black transition-colors"><MoreVertical size={14} /></button>
@@ -294,7 +296,11 @@ const LeadCard: React.FC<{ lead: any, onClick: () => void, usersMap: Record<stri
     );
 };
 
-const CRMView = () => {
+interface CRMViewProps {
+    onConvertLead?: (lead: Lead) => void;
+}
+
+const CRMView: React.FC<CRMViewProps> = ({ onConvertLead }) => {
     const [leads, setLeads] = useState<Lead[]>([]);
     const [draggedId, setDraggedId] = useState<string | null>(null);
     const [usersMap, setUsersMap] = useState<Record<string, string>>({});
@@ -343,11 +349,11 @@ const CRMView = () => {
             if (settings) setDistMode(settings.value);
 
             // 2. Users (Map ID -> Name)
-            // Use SITE_Users or select from auth via RPC if needed. assuming SITE_Users has metadata
-            const { data: usersData } = await supabase.from('SITE_Users').select('id, full_name');
+            // Safer to select specific columns we know exist. 'full_name' might be missing from schema causing errors.
+            const { data: usersData } = await supabase.from('SITE_Users').select('id, name');
             if (usersData) {
                 const map: Record<string, string> = {};
-                usersData.forEach((u: any) => { map[u.id] = u.full_name || 'Usuário'; });
+                usersData.forEach((u: any) => { map[u.id] = u.name || 'Usuário'; });
                 setUsersMap(map);
             }
         };
@@ -435,15 +441,19 @@ const CRMView = () => {
         const now = new Date().toISOString();
         
         // Optimistic Update: Also update the 'updated_at' to reset component timer logic
-        setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus as any, updated_at: now } : l));
+        setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus as any } : l));
 
         // DB Update
-        const { error } = await supabase.from('SITE_Leads').update({ status: newStatus, updated_at: now }).eq('id', leadId);
+        const { error } = await supabase.from('SITE_Leads').update({ status: newStatus }).eq('id', leadId);
         if (error) {
             console.error("Move Lead Error:", error);
             alert(`Falha ao mover lead: ${error.message || JSON.stringify(error)}`);
             // Revert optimistic update
             fetchData();
+        } else {
+             if (['Converted', 'Matriculated', 'Fechamento', 'Ganho'].includes(newStatus) && onConvertLead) {
+                 onConvertLead({ ...currentLead, status: newStatus as any });
+             }
         }
     };
     
@@ -464,6 +474,23 @@ const CRMView = () => {
             alert('Erro ao salvar alterações.');
         }
     };
+
+    const deleteLead = async () => {
+        if (!editingLead) return;
+        if (!window.confirm('Tem certeza que deseja excluir este lead? Esta ação não pode ser desfeita.')) return;
+
+        const { error } = await supabase.from('SITE_Leads').delete().eq('id', editingLead.id);
+
+        if (!error) {
+            setLeads(prev => prev.filter(l => l.id !== editingLead.id));
+            setEditingLead(null);
+        } else {
+            console.error("Error deleting lead:", error);
+            alert('Erro ao excluir lead: ' + error.message);
+        }
+    };
+
+
 
     // Filter Logic
     const filteredLeads = leads.filter(l => {
@@ -705,14 +732,20 @@ const CRMView = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                     {lead.assignedTo && usersMap[lead.assignedTo] ? (
+                                                     {/* Robust User Display */}
+                                                     {lead.assignedTo ? (
                                                         <div className="flex items-center gap-2">
-                                                            <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold">
-                                                                {usersMap[lead.assignedTo].charAt(0)}
+                                                            <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold overflow-hidden border border-gray-300">
+                                                                {/* Try to show Avatar or Initial */}
+                                                                {usersMap[lead.assignedTo] ? (
+                                                                     usersMap[lead.assignedTo].charAt(0).toUpperCase() 
+                                                                ) : '?'}
                                                             </div>
-                                                            <span className="text-xs text-gray-600">{usersMap[lead.assignedTo].split(' ')[0]}</span>
+                                                            <span className="text-xs text-gray-700 font-bold truncate max-w-[100px]" title={usersMap[lead.assignedTo] || lead.assignedTo}>
+                                                                {usersMap[lead.assignedTo] ? usersMap[lead.assignedTo].split(' ')[0] : 'Usuário ' + lead.assignedTo.substr(0,4)}
+                                                            </span>
                                                         </div>
-                                                    ) : <span className="text-xs text-gray-300 italic">Sem dono</span>}
+                                                     ) : <span className="text-xs text-gray-400 italic">Fila (Sem Dono)</span>}
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <span className="text-xs font-bold text-gray-500">{days}d {hours}h</span>
@@ -841,6 +874,13 @@ const CRMView = () => {
                                 </div>
 
                                 <div className="pt-4 flex gap-3">
+                                    <button
+                                        onClick={deleteLead}
+                                        className="bg-red-50 text-red-600 font-bold py-3 px-4 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
+                                        title="Excluir Lead"
+                                    >
+                                        <X size={16} />
+                                    </button>
                                     <button
                                         onClick={saveLeadUpdates}
                                         className="flex-1 bg-wtech-black text-white font-bold py-3 rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"

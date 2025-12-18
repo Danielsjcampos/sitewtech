@@ -290,7 +290,7 @@ const LandingPagesView = () => {
 
 
 // --- View: Courses Manager (List/Calendar) ---
-const CoursesManagerView = () => {
+const CoursesManagerView = ({ initialLead, onConsumeInitialLead }: { initialLead?: Lead | null, onConsumeInitialLead?: () => void }) => {
     const [courses, setCourses] = useState<Course[]>([]);
     const [leadsCount, setLeadsCount] = useState<Record<string, number>>({});
     const [isEditing, setIsEditing] = useState(false);
@@ -301,6 +301,36 @@ const CoursesManagerView = () => {
     // Settle Modal State
     const [settleModal, setSettleModal] = useState<{ isOpen: boolean, enrollment: Enrollment | null, amount: number }>({ isOpen: false, enrollment: null, amount: 0 });
     const [settleMethod, setSettleMethod] = useState('Pix');
+
+    // Auto-Enrollment Effect
+    useEffect(() => {
+        if (initialLead && courses.length > 0) {
+            // Fuzzy match course by context_id
+            const match = courses.find(c => 
+                (c.title && initialLead.contextId?.toLowerCase().includes(c.title.toLowerCase()))
+            ) || courses[0]; // Fallback to first course if no specific match found
+
+            if (match) {
+                // Open Enrollment View & Modal
+                setCurrentCourse(match);
+                setShowEnrollments(true);
+                // Pre-fill data
+                setEditingEnrollment({
+                    status: 'Confirmed', 
+                    amountPaid: 0,
+                    studentName: initialLead.name,
+                    studentEmail: initialLead.email,
+                    studentPhone: initialLead.phone,
+                    // Try to guess address from lead if available? Lead doesn't have address usually.
+                });
+                
+                // Fetch existing enrollments for context
+                fetchEnrollments(match.id);
+
+                if (onConsumeInitialLead) onConsumeInitialLead();
+            }
+        }
+    }, [initialLead, courses]); // Dependency to run when courses are loaded
 
     // --- Report State ---
     const [showReportModal, setShowReportModal] = useState(false);
@@ -547,9 +577,11 @@ const CoursesManagerView = () => {
             endTime: c.end_time,
             dateEnd: c.date_end,
             mapUrl: c.map_url,
+// UPDATE: Added recyclingPrice mapping
             zipCode: c.zip_code,
             addressNumber: c.address_number,
-            addressNeighborhood: c.address_neighborhood
+            addressNeighborhood: c.address_neighborhood,
+            recyclingPrice: c.recycling_price
         })));
 
         // Fetch Leads for Courses (Client-side estimation based on context_id)
@@ -592,6 +624,7 @@ const CoursesManagerView = () => {
             map_url: formData.mapUrl,
             schedule: formData.schedule,
             price: formData.price,
+            recycling_price: formData.recyclingPrice, // NEW FIELD
             capacity: formData.capacity,
             image: formData.image,
             hotels_info: formData.hotelsInfo,
@@ -1030,7 +1063,14 @@ const CoursesManagerView = () => {
                 status: e.status,
                 amountPaid: e.amount_paid,
                 paymentMethod: e.payment_method,
-                createdAt: e.created_at
+                createdAt: e.created_at,
+                // NEW FIELDS
+                address: e.address,
+                city: e.city,
+                state: e.state,
+                zipCode: e.zip_code,
+                isCredentialed: e.is_credentialed,
+                totalAmount: e.total_amount
             })));
         }
     };
@@ -1058,14 +1098,21 @@ const CoursesManagerView = () => {
             student_phone: editingEnrollment.studentPhone,
             status: editingEnrollment.status || 'Confirmed',
             amount_paid: Number(editingEnrollment.amountPaid) || 0,
-            payment_method: editingEnrollment.paymentMethod
+            payment_method: editingEnrollment.paymentMethod,
+            // Address & Credential
+            address: editingEnrollment.address,
+            city: editingEnrollment.city,
+            state: editingEnrollment.state,
+            zip_code: editingEnrollment.zipCode,
+            is_credentialed: editingEnrollment.isCredentialed,
+            total_amount: editingEnrollment.totalAmount
         };
 
         if (editingEnrollment.id) {
             // Update
             const { error } = await supabase.from('SITE_Enrollments').update(payload).eq('id', editingEnrollment.id);
             if (!error) {
-                setEnrollments(prev => prev.map(enr => enr.id === editingEnrollment.id ? { ...enr, ...editingEnrollment, amountPaid: payload.amount_paid, paymentMethod: payload.payment_method } as Enrollment : enr));
+                setEnrollments(prev => prev.map(enr => enr.id === editingEnrollment.id ? { ...enr, ...editingEnrollment, amountPaid: payload.amount_paid, paymentMethod: payload.payment_method, totalAmount: payload.total_amount } as Enrollment : enr));
                 setEditingEnrollment(null);
             } else {
                 alert('Erro ao atualizar: ' + error.message);
@@ -1272,17 +1319,40 @@ const CoursesManagerView = () => {
                             {/* Financial Fields */}
                             <div className="md:col-span-2 grid grid-cols-3 gap-4 border-t border-gray-200 pt-4 mt-2">
                                 <div>
-                                    <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Valor do Curso</label>
-                                    <div className="text-lg font-bold text-gray-900">R$ {currentCourse.price?.toFixed(2)}</div>
+                                    <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Valor Total (Negociado)</label>
+                                    <input 
+                                        type="number" 
+                                        className="w-full p-2 border rounded font-bold text-gray-900" 
+                                        value={editingEnrollment.totalAmount ?? currentCourse.price ?? 0} 
+                                        onChange={e => setEditingEnrollment({ ...editingEnrollment, totalAmount: parseFloat(e.target.value) })} 
+                                    />
+                                    { currentCourse.recyclingPrice && (
+                                        <div className="flex flex-col gap-1 mt-1">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setEditingEnrollment({ ...editingEnrollment, totalAmount: currentCourse.price || 0 })}
+                                                className={`text-[10px] px-2 py-1 rounded border text-left flex justify-between ${editingEnrollment.totalAmount === currentCourse.price ? 'bg-blue-100 border-blue-300 text-blue-800 font-bold' : 'bg-gray-50 border-gray-200 text-gray-600'}`}
+                                            >
+                                                <span>Normal</span> <span>R$ {currentCourse.price}</span>
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setEditingEnrollment({ ...editingEnrollment, totalAmount: currentCourse.recyclingPrice || 0 })}
+                                                className={`text-[10px] px-2 py-1 rounded border text-left flex justify-between ${editingEnrollment.totalAmount === currentCourse.recyclingPrice ? 'bg-green-100 border-green-300 text-green-800 font-bold' : 'bg-gray-50 border-gray-200 text-gray-600'}`}
+                                            >
+                                                <span>Reciclagem</span> <span>R$ {currentCourse.recyclingPrice}</span>
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Valor Pago (Sinal/Total)</label>
+                                    <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Valor Pago</label>
                                     <input type="number" step="0.01" className="w-full p-2 border rounded font-bold text-green-700" value={editingEnrollment.amountPaid || 0} onChange={e => setEditingEnrollment({ ...editingEnrollment, amountPaid: parseFloat(e.target.value) })} />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Saldo a Pagar</label>
                                     <div className="text-lg font-bold text-red-600">
-                                        R$ {((currentCourse.price || 0) - (editingEnrollment.amountPaid || 0)).toFixed(2)}
+                                        R$ {((editingEnrollment.totalAmount ?? currentCourse.price ?? 0) - (editingEnrollment.amountPaid || 0)).toFixed(2)}
                                     </div>
                                 </div>
                                 <div className="col-span-3">
@@ -1300,6 +1370,47 @@ const CoursesManagerView = () => {
                                         ))}
                                     </div>
                                     <input placeholder="Outro método..." className="w-full p-2 border rounded mt-2 text-sm" value={editingEnrollment.paymentMethod || ''} onChange={e => setEditingEnrollment({ ...editingEnrollment, paymentMethod: e.target.value })} />
+                                </div>
+
+                                {/* Address & Credentialing Section */}
+                                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4 bg-gray-100 p-4 rounded-lg">
+                                    <h4 className="md:col-span-2 font-bold text-gray-700 flex items-center gap-2"><MapPin size={16}/> Endereço & Credenciamento</h4>
+                                    
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">CEP</label>
+                                        <input className="w-full p-2 border rounded" value={editingEnrollment.zipCode || ''} onChange={e => setEditingEnrollment({...editingEnrollment, zipCode: e.target.value})} />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1">
+                                             <label className="block text-xs font-bold text-gray-500 mb-1">Cidade</label>
+                                             <input className="w-full p-2 border rounded" value={editingEnrollment.city || ''} onChange={e => setEditingEnrollment({...editingEnrollment, city: e.target.value})} />
+                                        </div>
+                                        <div className="w-20">
+                                             <label className="block text-xs font-bold text-gray-500 mb-1">UF</label>
+                                             <input className="w-full p-2 border rounded" value={editingEnrollment.state || ''} onChange={e => setEditingEnrollment({...editingEnrollment, state: e.target.value})} />
+                                        </div>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">Endereço Completo (Rua, Nº, Bairro)</label>
+                                        <input className="w-full p-2 border rounded" value={editingEnrollment.address || ''} onChange={e => setEditingEnrollment({...editingEnrollment, address: e.target.value})} />
+                                    </div>
+                                    
+                                    <div className="md:col-span-2 flex items-center gap-2 mt-2 bg-white p-3 rounded border border-gray-200">
+                                        <input 
+                                            type="checkbox" 
+                                            id="cred" 
+                                            className="w-5 h-5 text-wtech-gold rounded"
+                                            checked={editingEnrollment.isCredentialed || false} 
+                                            onChange={e => setEditingEnrollment({...editingEnrollment, isCredentialed: e.target.checked})} 
+                                        />
+                                        <div className="flex flex-col">
+                                            <label htmlFor="cred" className="text-sm font-bold text-gray-900 cursor-pointer">Aluno Credenciado</label>
+                                            <span className="text-xs text-gray-500">Se marcado, este aluno será listado como oficina credenciada (Mapas).</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Recycling Price Logic */}
+
                                 </div>
                             </div>
 
@@ -1327,7 +1438,7 @@ const CoursesManagerView = () => {
                         <tbody className="divide-y divide-gray-100 text-gray-900">
                             {enrollments.length > 0 ? (
                                 enrollments.map((enr, idx) => {
-                                    const balance = (currentCourse.price || 0) - (enr.amountPaid || 0);
+                                    const balance = (enr.totalAmount ?? currentCourse.price ?? 0) - (enr.amountPaid || 0);
                                     return (
                                         <tr key={enr.id} className="group hover:bg-gray-50">
                                             <td className="px-6 py-4 font-bold">
@@ -1921,10 +2032,14 @@ const CoursesManagerView = () => {
                             <label className="block text-sm font-bold mb-1 text-gray-700">Instrutor</label>
                             <input className="w-full border border-gray-300 p-2 rounded text-gray-900" value={formData.instructor || ''} onChange={e => setFormData({ ...formData, instructor: e.target.value })} />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-sm font-bold mb-1 text-gray-700">Valor (R$)</label>
                                 <input type="number" className="w-full border border-gray-300 p-2 rounded text-gray-900" value={formData.price || ''} onChange={e => setFormData({ ...formData, price: parseFloat(e.target.value) })} placeholder="0.00" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold mb-1 text-gray-700">Valor Reciclagem (R$)</label>
+                                <input type="number" className="w-full border border-gray-300 p-2 rounded text-gray-900" value={formData.recyclingPrice || ''} onChange={e => setFormData({ ...formData, recyclingPrice: parseFloat(e.target.value) })} placeholder="0.00" />
                             </div>
                             <div>
                                 <label className="block text-sm font-bold mb-1 text-gray-700">Vagas / Cotas</label>
@@ -4218,6 +4333,7 @@ const TeamView = () => {
 const Admin: React.FC = () => {
     const { settings: config } = useSettings();
     const [currentView, setCurrentView] = useState<View>('dashboard');
+    const [pendingEnrollmentLead, setPendingEnrollmentLead] = useState<Lead | null>(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const { user, loading, logout } = useAuth();
@@ -4391,12 +4507,15 @@ const Admin: React.FC = () => {
                         className="p-4 md:p-6 w-full min-h-full"
                     >
                         {currentView === 'dashboard' && <DashboardView />}
-                        {currentView === 'crm' && <CRMView />}
+                        {currentView === 'crm' && <CRMView onConvertLead={(lead) => {
+                            setPendingEnrollmentLead(lead);
+                            setCurrentView('courses_manager');
+                        }} />}
                         {currentView === 'team' && <TeamView />}
                         {currentView === 'orders' && <OrdersView />}
                         {currentView === 'finance' && <FinanceView />}
                         {currentView === 'mechanics' && <MechanicsView />}
-                        {currentView === 'courses_manager' && <CoursesManagerView />}
+                        {currentView === 'courses_manager' && <CoursesManagerView initialLead={pendingEnrollmentLead} onConsumeInitialLead={() => setPendingEnrollmentLead(null)} />}
                         {currentView === 'lp_builder' && <LandingPagesView />}
                         {currentView === 'blog_manager' && <BlogManagerView />}
                         {currentView === 'email_marketing' && <EmailMarketingView />}

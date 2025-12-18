@@ -65,6 +65,7 @@ export interface Course {
   endTime?: string; // Mapped from end_time
   mapUrl?: string; // Mapped from map_url
   schedule?: string; // Mapped from schedule
+  recyclingPrice?: number; // Mapped from recycling_price
 }
 
 export interface Enrollment {
@@ -77,6 +78,15 @@ export interface Enrollment {
   amountPaid?: number; // Mapped from amount_paid
   paymentMethod?: string; // Mapped from payment_method
   createdAt: string; // Mapped from created_at
+  // Address & Credentialing
+  address?: string;
+  addressNumber?: string;
+  addressNeighborhood?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  isCredentialed?: boolean; // Mapped from is_credentialed
+  totalAmount?: number; // Mapped from total_amount
 }
 
 export interface PostComment {

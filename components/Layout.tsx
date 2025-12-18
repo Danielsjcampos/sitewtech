@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { Menu, X, ShoppingCart, User as UserIcon, LogIn, Instagram, Facebook, Youtube, MessageCircle, Mail, Phone, MapPin } from 'lucide-react';
+import { Menu, X, ShoppingCart, User as UserIcon, LogIn, Instagram, Facebook, Youtube, MessageCircle, Mail, Phone, MapPin, Home, GraduationCap, FileText, Calendar, ArrowRight } from 'lucide-react';
 import { ASSETS } from '../constants';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -31,6 +31,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const facebook = get('facebook', '');
   const youtube = get('youtube', ''); 
   const whatsapp = get('whatsapp_phone', '');
+
+
+
+  const MobileMenuItem = ({ icon: Icon, label, to, onClick }: { icon: any, label: string, to: string, onClick: () => void }) => (
+    <Link to={to} onClick={onClick} className="flex flex-col items-center gap-3 group">
+        <motion.div 
+            whileTap={{ scale: 0.9 }}
+            className="w-16 h-16 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-lg group-hover:bg-white/20 transition-colors"
+        >
+            <Icon size={28} />
+        </motion.div>
+        <span className="text-xs font-medium text-white/90 text-center">{label}</span>
+    </Link>
+  );
 
   return (
     <div className="min-h-screen flex flex-col font-sans text-slate-800">
@@ -133,30 +147,56 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
         </div>
 
-        {/* Mobile Menu Overlay */}
+      </nav>
+
+              {/* Mobile Menu Overlay (iOS Glass Style) - Moved OUTSIDE nav to fix z-index/fixed positioning issues */}
          <AnimatePresence>
             {isMobileMenuOpen && (
                 <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className="absolute top-0 left-0 w-full h-screen bg-white/95 backdrop-blur-xl z-40 flex flex-col items-center justify-center gap-8 pt-20"
+                    initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
+                    animate={{ opacity: 1, backdropFilter: "blur(16px)" }}
+                    exit={{ opacity: 0, backdropFilter: "blur(0px)" }}
+                    className="fixed inset-0 z-[9999] bg-black/90 flex flex-col pt-24 px-6 items-center"
                 >
-                    <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-black uppercase hover:text-wtech-gold">Início</Link>
-                    <Link to="/cursos" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-black uppercase hover:text-wtech-gold">Cursos</Link>
-                    <Link to="/mapa" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-black uppercase hover:text-wtech-gold">Rede Credenciada</Link>
-                    <Link to="/blog" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-black uppercase hover:text-wtech-gold">Blog</Link>
-                    <Link to="/cursos" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-black uppercase hover:text-wtech-gold">Agenda</Link>
-                    <Link to="/contato" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-black uppercase hover:text-wtech-gold">Contato</Link>
-                    <div className="flex flex-col gap-4 mt-8 w-64">
-                        <button onClick={() => { setIsMobileMenuOpen(false); if(!user) setShowLoginModal(true); }} className="w-full py-4 rounded-xl border border-gray-200 text-center font-bold uppercase hover:bg-gray-50">
-                            {user ? <Link to="/admin">Painel Admin</Link> : 'Área do Membro'}
-                        </button>
+                    {/* Close Button Area (Invisible click handler for top part if needed, or just X button within layout) */}
+                    
+                    {/* Grid Layout - iPhone App Style */}
+                    <div className="w-full max-w-sm grid grid-cols-3 gap-y-8 gap-x-4">
+                        <MobileMenuItem icon={Home} label="Início" to="/" onClick={() => setIsMobileMenuOpen(false)} />
+                        <MobileMenuItem icon={GraduationCap} label="Cursos" to="/cursos" onClick={() => setIsMobileMenuOpen(false)} />
+                        <MobileMenuItem icon={MapPin} label="Rede" to="/mapa" onClick={() => setIsMobileMenuOpen(false)} />
+                        <MobileMenuItem icon={FileText} label="Blog" to="/blog" onClick={() => setIsMobileMenuOpen(false)} />
+                        <MobileMenuItem icon={Calendar} label="Agenda" to="/cursos" onClick={() => setIsMobileMenuOpen(false)} />
+                        <MobileMenuItem icon={MessageCircle} label="Contato" to="/contato" onClick={() => setIsMobileMenuOpen(false)} />
+                        
+                        {/* Member Area Special Item */}
+                        <motion.button 
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => { setIsMobileMenuOpen(false); if(!user) setShowLoginModal(true); }}
+                            className="col-span-3 mt-4 bg-white/10 border border-white/20 backdrop-blur-md rounded-2xl p-4 flex items-center justify-between group"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-full bg-wtech-gold flex items-center justify-center text-black font-bold shadow-lg">
+                                    {user ? <UserIcon size={24} /> : <LogIn size={24} />}
+                                </div>
+                                <div className="text-left">
+                                    <div className="text-white font-bold text-lg">{user ? 'Painel Admin' : 'Área do Membro'}</div>
+                                    <div className="text-white/60 text-xs">{user ? 'Gerenciar Sistema' : 'Fazer Login'}</div>
+                                </div>
+                            </div>
+                            <ArrowRight className="text-white/40" />
+                        </motion.button>
+                        
+                         {/* Socials Row */}
+                         <div className="col-span-3 flex justify-center gap-6 mt-8">
+                            {instagram && <a href={instagram} target="_blank" className="text-white/80 hover:text-white transition-colors"><Instagram size={24} /></a>}
+                            {whatsapp && <a href={`https://wa.me/${whatsapp.replace(/\D/g, '')}`} target="_blank" className="text-white/80 hover:text-white transition-colors"><MessageCircle size={24} /></a>}
+                            {youtube && <a href={youtube} target="_blank" className="text-white/80 hover:text-white transition-colors"><Youtube size={24} /></a>}
+                         </div>
                     </div>
                 </motion.div>
             )}
         </AnimatePresence>
-      </nav>
 
 
       {/* Main Content */}
